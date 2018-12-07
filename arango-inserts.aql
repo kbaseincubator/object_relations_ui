@@ -1,0 +1,54 @@
+// AQL to preload the database
+// Load each section one at a time
+
+// All objects
+
+let all_objects = [
+  {_key: "rhodo_reads", narrative: "rhodo_assembly"},
+  {_key: "rhodo_spades_assembly", narrative: "rhodo_assembly"},
+  {_key: "rhodo_velvet_assembly", narrative: "rhodo_assembly"},
+  {_key: "rhodo_spades_rast", narrative: "rhodo_annotations"},
+  {_key: "rhodo_spades_prokka", narrative: "rhodo_annotations"},
+  {_key: "rhodo_prokka.fbamodel", narrative: "rhodo_metabolics"},
+  {_key: "rhodo_prokka.fbamodel.gf.0", narrative: "rhodo_metabolics"}]
+for a in all_objects insert a in object
+
+// All actions
+
+let all_actions = [
+  {_key: "copy"},
+  {_key: "import"},
+  {_key: "FastQC"},
+  {_key: "SPAdes-Assembler"},
+  {_key: "Velvet-Assembler"},
+  {_key: "ModelSEED"},
+  {_key: "Prokka-Annotation"},
+  {_key: "RAST-Annotation"},
+  {_key: "FastANI"}]
+for b in all_actions insert b in action
+
+// All produced edges
+
+let all_produced = [
+  {_from: "action/import", _to: "object/rhodo_reads", narrative: "rhodo_assembly"},
+  {_from: "action/SPAdes-Assembler", _to: "object/rhodo_spades_assembly", narrative: "rhodo_assembly"},
+  {_from: "action/Velvet-Assembler", _to: "object/rhodo_velvet_assembly", narrative: "rhodo_assembly"},
+  {_from: "action/RAST-Annotation", _to: "object/rhodo_spades_rast", narrative: "rhodo_annotations"},
+  {_from: "action/Prokka-Annotation", _to: "object/rhodo_spades_prokka", narrative: "rhodo_annotations"},
+  {_from: "action/ModelSEED", _to: "object/rhodo_prokka.fbamodel", narrative: "rhodo_metabolics"},
+  {_from: "action/ModelSEED", _to: "object/rhodo_prokka.fbamodel.gf.0", narrative: "rhodo_metabolics"},
+  {_from: "action/copy", _to: "object/rhodo_spades_assembly.1", narrative: "rhodo_homology"}]
+for c in all_produced insert c in produced
+
+// All input_in edges
+
+let all_input_in = [
+  {_from: "object/rhodo_reads", _to: "action/FastQC", narrative: "rhodo_assembly"},
+  {_from: "object/rhodo_reads", _to: "action/SPAdes-Assembler", narrative: "rhodo_assembly"},
+  {_from: "object/rhodo_reads", _to: "action/Velvet-Assembler", narrative: "rhodo_assembly"},
+  {_from: "object/rhodo_spades_assembly", _to: "action/RAST-Annotation", narrative: "rhodo_annotations"},
+  {_from: "object/rhodo_spades_assembly", _to: "action/Prokka-Annotation", narrative: "rhodo_annotations"},
+  {_from: "object/rhodo_spades_prokka", _to: "action/ModelSEED", narrative: "rhodo_metabolics"},
+  {_from: "object/rhodo_spades_assembly", _to: "action/copy", narrative: "rhodo_homology"},
+  {_from: "object/rhodo_spades_assembly.1", _to: "action/FastANI", narrative: "rhodo_homology"}]
+for d in all_input_in insert d in input_in

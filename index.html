@@ -1,0 +1,94 @@
+<head>
+
+  <title>Knowledge Graph Demo</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,900" rel="stylesheet"> 
+  <link href="https://unpkg.com/basscss@8.0.2/css/basscss.min.css" rel="stylesheet">
+  <style>
+    * {
+      font-family: Roboto, sans-serif;
+      color: #444;
+      border-color: #aaa;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      font-weight: bold;
+    }
+    a {
+      font-weight: 500;
+      color: rgb(0, 71, 122);
+      text-decoration: none;
+    }
+    a:hover {
+      color: #222;
+    }
+    .circle {
+      height: 25px;
+      width: 25px;
+      background-color: #bbb;
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .btn {
+      border: none;
+      padding: 0.5em 1em;
+      font-weight: bold;
+      background: #ddd;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: #ccc;
+    }
+    .chkbx {
+      display: inline-block;
+      position: relative;
+      padding-left: 25px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    .chkbx input {
+      position: absolute;
+      opacity: 0;
+      cursor: pointer;
+      height: 0;
+      width: 0;
+    }
+    .chkbx > .checkmark {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 15px;
+      width: 15px;
+      border: 2px solid #888;
+    }
+    .chkbx:hover input ~ .checkmark {
+      background-color: #ccc;
+    }
+    .chkbx input:checked ~ .checkmark {
+      background-color: #2196F3;
+    }
+    .checkmark:after {
+      content: '';
+      position: absolute;
+      display: none;
+    }
+    .chkbx input:checked ~ .checkmark:after {
+      display: block;
+    }
+    .muted {
+      opacity: 0.7;
+    }
+  </style>
+
+</head>
+
+<body>
+
+<div id='hyperapp-container'></div>
+
+<script src='bundle.js'></script>
+</body>
