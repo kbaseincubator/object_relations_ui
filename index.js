@@ -1,11 +1,9 @@
 const { h, app } = require('hyperapp')
 
 const state = {}
+const actions = { update: () => state => state }
 
-const actions = {
-  update: () => state => state
-}
-
+// Placeholder data.
 const data = {
   linked: [
     {
@@ -113,7 +111,7 @@ const data = {
           obj_type: 'Assembly',
           obj_href: '#',
           owner: 'KBaseRefData',
-          owner_href:  '#'
+          owner_href: '#'
         }
       ]
     },
@@ -159,9 +157,23 @@ const data = {
   ]
 }
 
-/**
- * little svg line that represents sub-object links
- */
+// Top-level view function
+function view (state, actions) {
+  return h('div', {class: 'container px2 py3 max-width-3'}, [
+    header('Linked data'),
+    h('div', {},
+      data.linked.map(dataSection)
+    ),
+    header('Copies'),
+    h('div', {}, [ filterTools() ]),
+    h('div', {}, data.copies.map(dataSection)),
+    header('Similar data'),
+    h('div', {}, [ filterTools() ]),
+    h('div', {}, data.similar.map(dataSection))
+  ])
+}
+
+// Little svg line that represents sub-object links
 function graphLine () {
   const style = 'stroke: #bbb; stroke-width: 2'
   const height = 22
@@ -176,6 +188,23 @@ function graphLine () {
   ])
 }
 
+// Section of parent data, with circle icon
+function dataSection (entry) {
+  return h('div', {class: 'py1'}, [
+    h('div', {class: 'h3 mb1'}, [
+      h('span', {class: 'mr1 circle'}, ''),
+      h('a', {href: entry.obj_href}, entry.obj_name),
+      ' in ',
+      h('a', {href: entry.narr_href}, entry.narr_name),
+      ' by ',
+      h('a', {href: entry.owner_href}, entry.owner)
+    ]),
+    // Sub-sections
+    entry.subObjects.map(subentry => subDataSection(entry, subentry))
+  ])
+}
+
+// Section of sub-objects with little graph lines
 function subDataSection (entry, subentry) {
   let name = subentry.obj_name
   if (subentry.obj_type) {
@@ -205,21 +234,7 @@ function subDataSection (entry, subentry) {
   ])
 }
 
-function dataSection (entry) {
-  return h('div', {class: 'py1'}, [
-    h('div', {class: 'h3 mb1'}, [
-      h('span', {class: 'mr1 circle'}, ''),
-      h('a', {href: entry.obj_href}, entry.obj_name),
-      ' in ',
-      h('a', {href: entry.narr_href}, entry.narr_name),
-      ' by ',
-      h('a', {href: entry.owner_href}, entry.owner)
-    ]),
-    // Sub-sections
-    entry.subObjects.map(subentry => subDataSection(entry, subentry))
-  ])
-}
-
+// Filter results
 function filterTools () {
   return h('div', { class: 'pb1' }, [
     'Filter by ',
@@ -238,6 +253,7 @@ function filterTools () {
   ])
 }
 
+// Section header
 function header (text) {
   return h('div', {class: 'my2 py1 border-bottom'}, [
     h('h2', {class: 'inline-block m0 h3'}, text),
@@ -245,32 +261,6 @@ function header (text) {
   ])
 }
 
-function view (state, actions) {
-  /*
-  return h('div', {class: 'pa4'}, [
-    h('h2', {class: 'normal'}, [
-      'Knowledge Graph for ', h('a', {}, 'rhodo_spades_prokka'),
-      ' (Genome)'
-    ]),
-    h('ul', {class: 'tree'}, [
-      viewAction(data)
-    ])
-  ])
-  */
-  console.log('hello... world?')
-  return h('div', {class: 'container px2 py3 max-width-3'}, [
-    header('Linked data'),
-    h('div', {},
-      data.linked.map(dataSection)
-    ),
-    header('Copies'),
-    h('div', {}, [ filterTools() ]),
-    h('div', {}, data.copies.map(dataSection)),
-    header('Similar data'),
-    h('div', {}, [ filterTools() ]),
-    h('div', {}, data.similar.map(dataSection))
-  ])
-}
-
+// Render to the page
 const container = document.querySelector('#hyperapp-container')
 app(state, actions, view, container)
