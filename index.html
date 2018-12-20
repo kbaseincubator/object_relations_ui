@@ -21,6 +21,10 @@
     a:hover {
       color: #222;
     }
+    fieldset {
+      border: none;
+      padding: 0;
+    }
     .circle {
       height: 25px;
       width: 25px;
@@ -28,6 +32,13 @@
       border-radius: 50%;
       display: inline-block;
       vertical-align: middle;
+    }
+    .btn:disabled {
+      color: #666;
+    }
+    .btn:disabled:hover {
+      cursor: default;
+      background: #ddd;
     }
     .btn {
       border: none;
@@ -80,7 +91,12 @@
       display: block;
     }
     .muted {
-      opacity: 0.7;
+      opacity: 0.75;
+    }
+    .input {
+      border: none;
+      background: #f8f8f8;
+      border-bottom: 2px solid #aaa;
     }
   </style>
 

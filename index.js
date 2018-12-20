@@ -1,8 +1,24 @@
 const { h, app } = require('hyperapp')
+const serialize = require('form-serialize')
 
-const state = {}
-const actions = { update: () => state => state }
+let state = {}
+// Load cached form data
+try {
+  state = JSON.parse(window.localStorage.getItem('state'))
+  state.loading = false
+} catch (e) {
+  window.localStorage.removeItem('state')
+  state = {}
+}
 
+const actions = {
+  update: state => () => {
+    console.log('new state', state)
+    return state
+  }
+}
+
+/*
 // Placeholder data.
 const data = {
   linked: [
@@ -156,10 +172,97 @@ const data = {
     }
   ]
 }
+*/
+
+function submitForm (ev, actions) {
+  ev.preventDefault()
+  actions.update({ loading: true })
+  const data = serialize(ev.currentTarget, { hash: true })
+  actions.update(data)
+  fetchObj(data.upa, data.token, (err, results) => {
+    if (err) {
+      actions.update({ obj: null, loading: false, error: String(err) })
+      return
+    }
+    if (results[0]) {
+      actions.update({ obj: results[0], error: null })
+    }
+  })
+  // fetchProvenance(data.upa, data.token, actions)
+  // fetchHomologs(data.upa, data.token, actions)
+}
+
+// Convert something like "Module.Type-5.0" into just "Type"
+// Returns the input if we cannot match the format
+function typeName (typeStr) {
+  const matches = typeStr.match(/^.+\.(.+)-.+$/)
+  if (matches.length === 2) {
+    return matches[1]
+  }
+  return typeStr
+}
+
+function objInfo (obj) {
+  if (!obj) return ''
+  return h('div', {class: 'my2 py1 border-bottom'}, [
+    h('h2', {}, [state.obj.obj_name, ' (', typeName(state.obj.ws_type), ')']),
+    h('p', {}, [
+      'In narrative ',
+      h('a', {
+        href: `https://narrative.kbase.us/narrative/ws.${state.obj.workspace_id}.obj.1`,
+        target: '_blank'
+      }, [
+        state.obj.narr_name
+      ]),
+      ' by ',
+      h('a', {
+        href: 'https://narrative.kbase.us/#people/' + state.obj.owner,
+        target: '_blank'
+      }, [ state.obj.owner ])
+    ])
+  ])
+}
 
 // Top-level view function
 function view (state, actions) {
+  window.localStorage.setItem('state', JSON.stringify(state))
+  let provenance = ''
+  let similar = ''
+  let errorMsg = ''
+  if (state.provenance) {
+  }
+  if (state.similar) {
+  }
+  if (state.error) {
+    errorMsg = h('p', {}, state.error)
+  }
   return h('div', {class: 'container px2 py3 max-width-3'}, [
+    h('h2', {}, 'Relation Engine Object Viewer'),
+    h('form', { onsubmit: ev => submitForm(ev, actions) }, [
+      h('fieldset', {class: 'col col-4'}, [
+        h('label', {class: 'block mb2 bold'}, 'KBase auth token (CI)'),
+        h('input', {
+          class: 'input p1', required: true, type: 'password', name: 'token', value: state.token
+        })
+      ]),
+      h('fieldset', {class: 'col col-4'}, [
+        h('label', {class: 'block mb2 bold'}, 'Object Address (Prod)'),
+        h('input', {
+          placeholder: '30462/10/1',
+          class: 'input p1',
+          required: true,
+          type: 'text',
+          name: 'upa',
+          value: state.upa
+        })
+      ]),
+      h('fieldset', {class: 'col-8 pt2'}, [
+        h('button', {disabled: state.loading, class: 'btn', type: 'submit'}, state.loading ? 'Loading' : 'Submit')
+      ])
+    ]),
+    errorMsg,
+    objInfo(state.obj),
+    /*
     header('Linked data'),
     h('div', {},
       data.linked.map(dataSection)
@@ -170,9 +273,13 @@ function view (state, actions) {
     header('Similar data'),
     h('div', {}, [ filterTools() ]),
     h('div', {}, data.similar.map(dataSection))
+    */
+    provenance,
+    similar
   ])
 }
 
+/*
 // Little svg line that represents sub-object links
 function graphLine () {
   const style = 'stroke: #bbb; stroke-width: 2'
@@ -187,7 +294,9 @@ function graphLine () {
     h('line', {x1: 4, y1: height, x2: 25, y2: height, style})
   ])
 }
+*/
 
+/*
 // Section of parent data, with circle icon
 function dataSection (entry) {
   return h('div', {class: 'py1'}, [
@@ -203,7 +312,9 @@ function dataSection (entry) {
     entry.subObjects.map(subentry => subDataSection(entry, subentry))
   ])
 }
+*/
 
+/*
 // Section of sub-objects with little graph lines
 function subDataSection (entry, subentry) {
   let name = subentry.obj_name
@@ -233,7 +344,9 @@ function subDataSection (entry, subentry) {
     ])
   ])
 }
+*/
 
+/*
 // Filter results
 function filterTools () {
   return h('div', { class: 'pb1' }, [
@@ -252,7 +365,9 @@ function filterTools () {
     ])
   ])
 }
+*/
 
+/*
 // Section header
 function header (text) {
   return h('div', {class: 'my2 py1 border-bottom'}, [
@@ -260,7 +375,130 @@ function header (text) {
     h('span', {class: 'right inline-block'}, '10 total')
   ])
 }
+*/
 
 // Render to the page
 const container = document.querySelector('#hyperapp-container')
 app(state, actions, view, container)
+
+/*
+// Fetch provenance results for an object
+function fetchProvenance (upa, token, actions) {
+  // Fetch the data
+  const query = (`
+    // let obj_id = FIRST(
+    //   for e in wsprov_copied_into
+    //     sort rand()
+    //     limit 1
+    //     return e._from
+    // )
+    let obj_id = CONCAT("wsprov_object/", @obj_key)
+    let links = (
+      for obj in 1..1 any obj_id wsprov_links
+      filter obj
+      return obj
+    )
+    let copies = (
+      for obj in 1..100 any obj_id wsprov_copied_into
+      filter obj
+      return obj
+    )
+    let copy_links = (
+      for obj in wsprov_object
+      filter obj in copies
+      for obj1 in 1..100 any obj wsprov_links
+      filter obj1
+      return {copy_id: obj._id, copy: obj1}
+    )
+    let link_links = (
+      for obj in wsprov_object
+      filter obj in links
+      for obj1 in 1..100 any obj wsprov_links
+      filter obj1
+      return {link_id: obj._id, link: obj1}
+    )
+    return {copies: copies, copy_links: copy_links, obj_id: obj_id, links: links, link_links}
+  `)
+  const payload = { query, obj_key: upa.replace(/\//g, ':') }
+  aqlQuery(payload, token, results => {
+    actions.update({ provenance: results })
+  })
+}
+*/
+
+function fetchObj (upa, token, cb) {
+  // Fetch info about an object
+  const query = (`
+    let obj_id = CONCAT("wsprov_object/", @obj_key)
+    for obj in wsprov_object
+      filter obj._id == obj_id
+      return obj
+  `)
+  const payload = { query, obj_key: upa.replace(/\//g, ':') }
+  aqlQuery(payload, token, cb)
+}
+
+/*
+function fetchLinks (upa, token, cb) {
+  // Fetch all linked and sub-linked data from an upa
+}
+*/
+
+/*
+function fetchCopies (upa, token, cb) {
+  // Fetch all copies and linked data of those copies from an upa
+}
+*/
+
+/*
+function fetchHomologs (upa, token, cb) {
+  // Use the sketch service to fetch homologs
+  // (only applicable to reads, assemblies, or annotations)
+  // For each homolog with a kbase_id, fetch the sub-links
+  const url = 'https://kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service'
+  const payload = {
+    method: 'get_homologs',
+    params: [upa]
+  }
+  window.fetch(url, {
+    method: 'POST',
+    headers: { },
+    mode: 'cors',
+    body: JSON.stringify(payload)
+  })
+    .then(resp => resp.json())
+    .then(function (json) {
+      console.log(json.result)
+      let kbaseResults = json.result.distances.filter(result => {
+        return 'kbase_id' in result
+      }).map(r => r.kbase_id.replace(/\//g, ':'))
+      console.log(kbaseResults)
+      // For all linked objects for each results with a kbase_id
+    })
+    .catch(function (err) {
+      console.log({ err })
+      console.log(String(err))
+    })
+}
+*/
+
+function aqlQuery (payload, token, cb) {
+  // Fetch the data
+  window.fetch('https://ci.kbase.us/services/relation_engine_api/api/query_results', {
+    method: 'POST',
+    headers: {
+      // 'Content-Type': 'application/json',
+      'Authorization': token
+    },
+    mode: 'cors',
+    body: JSON.stringify(payload)
+  })
+    .then(resp => resp.json())
+    .then(json => {
+      console.log(json)
+      if (json.error) throw new Error(json.error)
+      if (!json.results.length) throw new Error('No results found')
+      cb(null, json.results)
+    })
+    .catch(err => cb(err))
+}
