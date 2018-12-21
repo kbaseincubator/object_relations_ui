@@ -149,7 +149,7 @@ function view (state, actions) {
           required: true,
           type: 'text',
           name: 'upa',
-          value: state.upa
+          value: state.upa || '30462/10/1'
         }),
         h('a', { class: 'btn right h5', onclick: () => fetchRando(state, actions) }, 'Fetch random object ID')
       ]),
