@@ -1,8 +1,7 @@
 const { h, app } = require('hyperapp')
-const serialize = require('form-serialize')
 
 let state = {}
-// Load cached form data
+// Load cached form data from localStorage
 try {
   state = JSON.parse(window.localStorage.getItem('state'))
   state.loading = false
@@ -12,29 +11,38 @@ try {
 }
 
 const actions = {
-  update: state => () => {
-    console.log('new state', state)
-    return state
-  }
+  update: state => () => state
 }
 
 // Fetch a random object to search on
+// We find an object that has at least 1 copy, so the data is somewhat interesting
 function fetchRando (state, actions) {
-  actions.update({ loading: true })
-  fetchRandomObj(state.token)
+  actions.update({ loadingUpa: true })
+  function makeRequest (token) {
+    const query = (`
+      for e in wsprov_copied_into
+        sort rand()
+        limit 1
+        return e._from
+    `)
+    const payload = { query }
+    return aqlQuery(payload, token)
+  }
+  makeRequest(state.authToken)
     .then(result => {
       const upa = result.replace('wsprov_object/', '').replace(/:/g, '/')
       actions.update({ upa })
     })
-    .then(() => actions.update({ loading: false, error: null }))
+    .then(() => actions.update({ loadingUpa: false, error: null }))
     .catch(err => {
-      actions.update({ obj: null, loading: false, error: String(err), upa: null })
+      actions.update({ obj: null, loadingUpa: false, error: String(err), upa: null })
     })
 }
 
 // Perform a full fetch on an object
-function submitForm (ev, actions) {
-  ev.preventDefault()
+// This performs serveral fetches on a couple services
+function newSearch (state, actions) {
+  // Reset all the state, clear out results
   actions.update({
     obj: null,
     similarLinked: null,
@@ -42,25 +50,28 @@ function submitForm (ev, actions) {
     copies: null,
     links: null,
     error: null,
-    loading: true
+    loading: true,
+    searching: true
   })
-  const data = serialize(ev.currentTarget, { hash: true })
-  actions.update(data)
-  fetchObj(data.upa, data.token)
+  fetchObj(state.upa, state.authToken)
     .then(results => {
       console.log('obj info results', results)
-      actions.update({ obj: results })
-      return fetchLinkedObjs(data.upa, data.token)
+      if (results) {
+        actions.update({ obj: results })
+      } else {
+        actions.update({ obj: { obj_name: 'Object ' + state.upa, upa: state.upa } })
+      }
+      return fetchLinkedObjs(state.upa, state.authToken)
     })
     .then(results => {
       console.log('linked results', results)
       actions.update({ links: results })
-      return fetchCopies(data.upa, data.token)
+      return fetchCopies(state.upa, state.authToken)
     })
     .then(results => {
       console.log('copy results', results)
-      actions.update({ copies: results })
-      return fetchHomologs(data.upa, data.token)
+      actions.update({ copies: results, loading: false })
+      return fetchHomologs(state.upa, state.authToken)
     })
     .then(results => {
       if (!results || !results.length) return
@@ -70,17 +81,14 @@ function submitForm (ev, actions) {
         .map(r => r.kbase_id.replace(/\//g, ':'))
       console.log('kbase results', kbaseResults)
       // TODO Find all linked objects for each results with a kbase_id
-      return fetchManyLinkedObjs(kbaseResults, data.token)
+      return fetchManyLinkedObjs(kbaseResults, state.authToken)
     })
     .then(results => {
       console.log('homology link results', results)
-      actions.update({ similarLinked: results })
+      actions.update({ similarLinked: results, searching: false })
     })
-    // Stop loading
-    .then(() => actions.update({ loading: false }))
-    .catch(err => actions.update({ error: String(err) }))
-  // fetchProvenance(data.upa, data.token, actions)
-  // fetchHomologs(data.upa, data.token, actions)
+    // Always set an error and stop loading on an exception
+    .catch(err => actions.update({ error: String(err), loading: false, searching: false }))
 }
 
 // Convert something like "Module.Type-5.0" into just "Type"
@@ -91,170 +99,212 @@ function typeName (typeStr) {
   return matches[1]
 }
 
+// Generate KBase linksf or an object
 function objHrefs (obj) {
+  const dataview = 'https://narrative.kbase.us/#dataview/'
+  if (obj.upa) {
+    return { obj: dataview + obj.upa }
+  }
   return {
     narrative: `https://narrative.kbase.us/narrative/ws.${obj.workspace_id}.obj.1`,
-    obj: 'https://narrative.kbase.us/#dataview/' + obj._key.replace(/:/g, '/'),
+    obj: dataview + obj._key.replace(/:/g, '/'),
     owner: 'https://narrative.kbase.us/#people/' + obj.owner
   }
-}
-
-function objInfo (obj) {
-  if (!obj) return ''
-  return h('div', {class: 'mt2 pt1'}, [
-    h('h2', {}, [
-      h('a', {
-        href: objHrefs(obj).obj,
-        target: '_blank',
-        class: 'bold'
-      }, [
-        obj.obj_name, ' (', typeName(obj.ws_type), ')'
-      ])
-    ]),
-    h('p', {}, [
-      'In narrative ',
-      h('a', {
-        href: `https://narrative.kbase.us/narrative/ws.${obj.workspace_id}.obj.1`,
-        target: '_blank'
-      }, [
-        obj.narr_name
-      ]),
-      ' by ',
-      h('a', {
-        href: 'https://narrative.kbase.us/#people/' + obj.owner,
-        target: '_blank'
-      }, [ obj.owner ])
-    ])
-  ])
 }
 
 // Top-level view function
 function view (state, actions) {
   window.localStorage.setItem('state', JSON.stringify(state))
-  const errorMsg = state.error ? h('p', {}, state.error) : ''
   return h('div', {class: 'container px2 py3 max-width-3'}, [
     h('h1', {class: 'mt0 mb3'}, 'Relation Engine Object Viewer'),
-    h('form', { onsubmit: ev => submitForm(ev, actions) }, [
+    h('form', {
+      onsubmit: ev => {
+        ev.preventDefault()
+        newSearch(state, actions)
+      }
+    }, [
       h('fieldset', {class: 'col col-4'}, [
         h('label', {class: 'block mb2 bold'}, 'KBase auth token (CI)'),
         h('input', {
-          class: 'input p1', required: true, type: 'password', name: 'token', value: state.token
+          class: 'input p1',
+          required: true,
+          type: 'password',
+          name: 'token',
+          oninput: ev => {
+            actions.update({ authToken: ev.currentTarget.value })
+            return ev
+          },
+          value: state.authToken
         })
       ]),
       h('fieldset', {class: 'col col-6'}, [
         h('label', {class: 'block mb2 bold'}, 'Object Address (Prod)'),
         h('input', {
-          placeholder: '30462/10/1',
+          placeholder: '1/2/3',
           class: 'input p1',
           required: true,
           type: 'text',
           name: 'upa',
-          value: state.upa || '30462/10/1'
+          input: ev => actions.update({ upa: ev.currentTarget.value }),
+          value: state.upa
         }),
-        h('a', { class: 'btn right h5', onclick: () => fetchRando(state, actions) }, 'Fetch random object ID')
+        showIf(
+          state.authToken && !state.loadingUpa,
+          h('a', { class: 'btn right h5', onclick: () => fetchRando(state, actions) }, 'Fetch random object ID')
+        ),
+        showIf(state.loadingUpa, h('p', { class: 'inline-block pl2 m0' }, 'Loading...'))
       ]),
       h('fieldset', {class: 'clearfix col-12 pt2'}, [
-        h('button', {disabled: state.loading, class: 'btn', type: 'submit'}, state.loading ? 'Loading' : 'Submit')
+        h('button', {disabled: !state.authToken, class: 'btn', type: 'submit'}, 'Submit'),
+        showIf(!state.authToken, h('p', { class: 'pl2 inline-block' }, 'Please enter an auth token first.'))
       ])
     ]),
-    errorMsg,
-    h('p', {}, 'Note that the filters do not work yet. Homology search takes ~30 seconds on the first run.'),
-    objInfo(state.obj),
-    linkedObjsSection(state),
-    copyObjsSection(state),
-    similarObjsSection(state)
+    showIf(state.error, h('p', { class: 'error' }, state.error)),
+    objInfo(state),
+    linkedObjsSection(state, actions),
+    copyObjsSection(state, actions),
+    similarData(state, actions)
   ])
 }
 
-function linkedObjsSection (state) {
-  if (!state.links || !state.links.links.length) return ''
+// Generic object info view
+function objInfo (state) {
+  const obj = state.obj
+  if (!obj) return ''
+  const hrefs = objHrefs(obj)
+  const title = h('h2', {}, [
+    h('a', { href: hrefs.obj, target: '_blank', class: 'bold' }, [
+      obj.obj_name,
+      showIf(state.obj.ws_type, () => ' (' + typeName(state.obj.ws_type) + ')')
+    ])
+  ])
+  const body = h('p', {}, [
+    showIf(
+      obj.narr_name,
+      () => h('span', {}, [
+        'In narrative ',
+        h('a', { href: hrefs.narrative, target: '_blank' }, [ obj.narr_name ])
+      ])
+    ),
+    showIf(
+      obj.owner,
+      () => h('span', {}, [
+        ' by ',
+        h('a', { href: hrefs.owner, target: '_blank' }, [ obj.owner ])
+      ])
+    )
+  ])
+  return h('div', {class: 'mt2 pt1'}, [ title, body ])
+}
+
+// A bit more readable ternary conditional for use in views
+// Display the vnode if the boolean is truthy
+function showIf (bool, vnode) {
+  if (bool) {
+    if (typeof vnode === 'function') return vnode()
+    else return vnode
+  }
+  return ''
+}
+
+// Section of linked objects -- "Linked data"
+function linkedObjsSection (state, actions) {
+  if (state.loading) return h('p', {}, 'Loading related data...')
+  if (!state.links || !state.links.links.length) return h('p', {class: 'muted'}, 'No linked data.')
   const links = state.links.links
   const sublinks = state.links.sublinks
   return h('div', {class: 'clearfix'}, [
     header('Linked data', links.length),
     filterTools(),
-    h('div', {}, links.map(l => dataSection(sublinks, l)))
+    h('div', {}, links.map(l => dataSection(sublinks, l, state, actions)))
   ])
 }
 
-function copyObjsSection (state) {
-  if (!state.copies || !state.copies.copies.length) return ''
+function copyObjsSection (state, actions) {
+  if (state.loading) return ''
+  if (!state.copies || !state.copies.copies.length) return h('p', {class: 'muted'}, 'No copies.')
   const copies = state.copies.copies
   const sublinks = state.copies.sublinks
   return h('div', {class: 'clearfix mt2'}, [
     header('Copies', copies.length),
     filterTools(),
-    h('div', {}, copies.map(c => dataSection(sublinks, c)))
+    h('div', {}, copies.map(c => dataSection(sublinks, c, state, actions)))
   ])
 }
 
-function similarObjsSection (state) {
-  if (!state.similar || !state.similar.length) return ''
+function similarData (state, actions) {
+  if (state.searching) return h('p', {}, 'Searching for homologs...')
+  if (!state.similar || !state.similar.length) return h('p', {class: 'muted'}, 'No similarity results.')
   return h('div', { class: 'clearfix mt2' }, [
     header('Similar data', state.similar.length),
-    h('div', {}, state.similar.map(similarObjSection))
+    h('div', {}, state.similar.map(s => similarObjSection(s, state, actions)))
   ])
 }
 
-function similarObjSection (entry) {
-  // TODO href is ncbi or kbase based on kbase_id
-  let href = '#'
-  if (entry.kbase_id) {
-    href = 'https://narrative.kbase.us/#dataview/' + entry.kbase_id
-  } else {
-    href = 'https://www.ncbi.nlm.nih.gov/assembly/' + entry.sourceid
-  }
+function similarObjSection (entry, state, actions) {
+  const readableNS = entry.namespaceid.replace('_', ' ')
   return h('div', {class: 'clearfix py1'}, [
     h('div', {class: 'h3 mb1'}, [
       h('p', {class: 'semi-muted mb1 my0 h4'}, [h('span', {class: 'bold'}, entry.dist), ' distance']),
       h('span', {class: 'mr1 circle left'}, ''),
       h('div', {class: 'clearfix left'}, [
-        h('a', { href, target: '_blank' }, entry.sciname)
+        h('a', {
+          onclick: () => {
+            const upa = entry.kbase_id
+            actions.update({ upa })
+            state.upa = upa
+            newSearch(state, actions)
+          }
+        }, entry.sciname || entry.sourceid),
+        h('span', { class: 'muted' }, [' (', readableNS, ')'])
       ])
     ])
   ])
 }
 
 // Section of parent data, with circle icon
-function dataSection (sublinks, entry) {
+function dataSection (sublinks, entry, state, actions) {
   const hrefs = objHrefs(entry)
   sublinks = sublinks.filter(l => l.parent_id === entry._id)
-  console.log('sublinks', sublinks)
   return h('div', {class: 'clearfix py1'}, [
-    h('div', {class: 'h3 mb1 clearfix'}, [
-      h('span', {class: 'mr1 circle left'}, ''),
-      h('div', {class: 'clearfix left'}, [
-        h('a', { href: hrefs.obj, target: '_blank' }, entry.obj_name),
-        ' (', typeName(entry.ws_type), ') '
-      ]),
-      h('div', {class: 'clearfix left h4 mt1'}, [
-        ' In ',
-        h('a', { href: hrefs.narrative, target: '_blank' }, entry.narr_name),
-        ' by ',
-        h('a', { href: hrefs.owner, target: '_blank' }, entry.owner)
+    h('div', {class: 'h3 mb1 clearfix', style: {'whiteSpace': 'nowrap'}}, [
+      h('span', {class: 'mr1 circle inline-block'}, ''),
+      h('div', {class: 'inline-block'}, [
+        h('a', {
+          onclick: ev => {
+            const upa = entry._key.replace(/:/g, '/')
+            actions.update({ upa })
+            newSearch(state, actions)
+          }
+        }, entry.obj_name),
+        ' (', typeName(entry.ws_type), ') ',
+        ' in ',
+        h('a', { href: hrefs.narrative, target: '_blank' }, entry.narr_name)
       ])
     ]),
     // Sub-link sections
-    h('div', { class: 'clearfix' }, [
-      sublinks.map(subentry => subDataSection(subentry.obj, entry))
+    h('div', {}, [
+      sublinks.map(subentry => subDataSection(subentry.obj, entry, state, actions))
     ])
   ])
 }
 
 // Section of sublinked objects with little graph lines
-function subDataSection (subentry, entry) {
+function subDataSection (subentry, entry, state, actions) {
   const hrefs = objHrefs(subentry)
   let name = subentry.obj_name
+  let type = ''
   if (subentry.ws_type) {
-    name += ' (' + typeName(subentry.ws_type) + ')'
+    type = ' (' + typeName(subentry.ws_type) + ')'
   }
   let narrative = ''
   if (subentry.narr_name && subentry.narr_name !== entry.narr_name) {
     narrative = h('span', {}, [
-      'In ',
+      ' in ',
       h('a', {href: hrefs.narrative, target: '_blank'}, subentry.narr_name)
     ])
   }
+  /*
   let author = ''
   if (subentry.owner && subentry.owner !== entry.owner) {
     author = h('span', {}, [
@@ -262,11 +312,27 @@ function subDataSection (subentry, entry) {
       h('a', {href: hrefs.owner, target: '_blank'}, subentry.owner)
     ])
   }
-  return h('div', {class: 'pl1 clearfix mb1'}, [
-    graphLine(),
+  */
+  return h('div', {
+    class: 'relative clearfix mb1',
+    style: { paddingLeft: '33px' }
+  }, [
+    h('div', {
+      style: { position: 'absolute', top: '-32px', left: '7.5px' }
+    }, [ graphLine() ]),
     h('span', {class: 'inline-block muted'}, [
-      h('div', {}, [ h('a', {href: hrefs.obj, target: '_blank'}, name) ]),
-      h('div', {}, [ narrative, author ])
+      h('div', {}, [
+        h('a', {
+          onclick: () => {
+            const upa = subentry._key.replace(/:/g, '/')
+            actions.update({ upa })
+            state.upa = upa
+            newSearch(state, actions)
+          }
+        }, name),
+        type,
+        narrative
+      ])
     ])
   ])
 }
@@ -274,15 +340,15 @@ function subDataSection (subentry, entry) {
 // Little svg line that represents sub-object links
 function graphLine () {
   const style = 'stroke: #bbb; stroke-width: 2'
-  const height = 22
+  const height = 40
+  const width = 22
   return h('svg', {
     height: height + 1,
-    width: 25,
-    class: 'inline-block align-top mr1',
-    style: 'position: relative; top: -10px'
+    width,
+    class: 'inline-block align-top mr1'
   }, [
     h('line', {x1: 5, y1: 0, x2: 5, y2: height, style}),
-    h('line', {x1: 4, y1: height, x2: 25, y2: height, style})
+    h('line', {x1: 4, y1: height, x2: width, y2: height, style})
   ])
 }
 
@@ -354,8 +420,6 @@ function fetchLinkedObjs (upa, token) {
 
 function fetchManyLinkedObjs (upas, token) {
   const objIds = upas.map(u => 'wsprov_object/' + u.replace(/\//g, ':'))
-  console.log('???')
-  console.log(objIds)
   const query = (`
     let links = (
       for obj in wsprov_object
@@ -366,7 +430,6 @@ function fetchManyLinkedObjs (upas, token) {
     )
     return {links: links}
   `)
-  console.log(query)
   const payload = { query, objIds }
   return aqlQuery(payload, token)
 }
@@ -411,22 +474,10 @@ function fetchHomologs (upa, token) {
   })
     .then(resp => resp.json())
     .then(function (json) {
-      console.log('homology json', json)
       if (json && json.result && json.result.distances && json.result.distances.length) {
         return json.result.distances
       }
     })
-}
-
-function fetchRandomObj (token) {
-  const query = (`
-    for e in wsprov_copied_into
-      sort rand()
-      limit 1
-      return e._from
-  `)
-  const payload = { query }
-  return aqlQuery(payload, token)
 }
 
 function aqlQuery (payload, token, cb) {
