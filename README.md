@@ -10,3 +10,9 @@ npm start
 ```
 
 Point your browser to `localhost:9968`
+
+## Build and deploy to github-pages
+
+```
+npm run build
+```
