@@ -2,22 +2,23 @@
 
   <title>Knowledge Graph Demo</title>
 
-  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,900" rel="stylesheet"> 
+  <link href="https://fonts.googleapis.com/css?family=Oxygen:400,500,900" rel="stylesheet"> 
   <link href="https://unpkg.com/basscss@8.0.2/css/basscss.min.css" rel="stylesheet">
   <style>
     * {
-      font-family: Roboto, sans-serif;
+      font-family: Oxygen, Helvetica, Arial, sans-serif;
       color: #444;
       border-color: #aaa;
     }
     h1, h2, h3, h4, h5, h6 {
-      font-weight: bold;
+      font-weight: 900;
+      color: #333;
     }
     a {
-      font-weight: 500;
-      color: rgb(0, 71, 122);
+      font-weight: 900;
       text-decoration: none;
       cursor: pointer;
+      color: #23527c;
     }
     a:hover {
       color: #222;
@@ -42,14 +43,16 @@
       background: #ddd;
     }
     .btn {
-      border: none;
+      border: 1px solid #ccc;
       padding: 0.5em 1em;
       font-weight: bold;
-      background: #ddd;
+      background: white;
       cursor: pointer;
+      color: #444;
     }
     .btn:hover {
-      background: #ccc;
+      background: #e6e6e6;
+      border-color: #8c8c8c;
     }
     .chkbx {
       display: inline-block;
@@ -105,6 +108,17 @@
     .error {
       border-left: 4px solid #ff7a7a;
       padding-left: 1rem;
+    }
+    .text-ellipsis {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .h3-5 { /* h3.5 :p */
+      font-size: 1.1rem;
+    }
+    .mb0-5 { /* mb0.5 :p */
+      margin-bottom: 0.25rem;
     }
   </style>
 
