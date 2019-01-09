@@ -109,16 +109,48 @@
       border-left: 4px solid #ff7a7a;
       padding-left: 1rem;
     }
-    .text-ellipsis {
+    .text-ellipsis-100p {
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .text-ellipsis-18rem {
+      display: inline-block;
+      max-width: 18rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: bottom;
+      white-space: nowrap;
+    }
+    .text-ellipsis-12rem {
+      display: inline-block;
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: bottom;
+      white-space: nowrap;
     }
     .h3-5 { /* h3.5 :p */
       font-size: 1.1rem;
     }
     .mb0-5 { /* mb0.5 :p */
       margin-bottom: 0.25rem;
+    }
+    .breadcrumb a {
+      font-weight: 400;
+    }
+    .breadcrumb:after {
+      content: '›';
+      display: inline-block;
+      margin-left: 0.5rem;
+      margin-right: 0.5rem;
+      font-weight: bold;
+    }
+    .breadcrumb:last-child:after {
+      content: '';
+    }
+    .breadcrumb:last-child a {
+      font-weight: bold;
     }
   </style>
 
