@@ -1,15 +1,11 @@
 const { h, app } = require('hyperapp')
 
+// Get the url query string as an object
 const query = window.location.search.slice(1).split('&')
   .map(s => s.split('='))
   .reduce((obj, [key, val]) => { obj[key] = val; return obj }, {})
 
-// Create a new state for the app from scratch with any defaults
-function createState () {
-  return { navHistory: [], obj: {} }
-}
-
-const state = createState()
+const state = { navHistory: [], obj: {} }
 
 // We just use actions.update for everything to keep it simple
 const actions = {
@@ -40,9 +36,9 @@ function newSearch (state, actions, upa) {
     copies: null,
     links: null,
     error: null,
-    loading: true
+    loadingCopies: true,
+    loadingLinks: true
   })
-  fetchLinkedObjs(state.upa, state.authToken)
   /*
   fetchObj(state.upa, state.authToken)
     .then(results => {
@@ -56,17 +52,18 @@ function newSearch (state, actions, upa) {
       return fetchLinkedObjs(state.upa, state.authToken)
     })
     */
+  fetchLinkedObjs(state.upa, state.authToken)
     .then(results => {
       console.log('linked results', results)
-      actions.update({ links: results })
-      return fetchCopies(state.upa, state.authToken)
+      actions.update({ links: results, loadingLinks: false })
     })
+    .catch(err => actions.update({ error: String(err), loadingLinks: false }))
+  fetchCopies(state.upa, state.authToken)
     .then(results => {
       console.log('copy results', results)
-      actions.update({ copies: results, loading: false })
+      actions.update({ copies: results, loadingCopies: false })
     })
-    // Always set an error and stop loading on an exception
-    .catch(err => actions.update({ error: String(err), loading: false }))
+    .catch(err => actions.update({ error: String(err), loadingCopies: false }))
   if (searchableWithHomology(state.obj)) {
     actions.update({ searching: true })
     fetchHomologs(state.upa, state.authToken)
@@ -278,7 +275,7 @@ function showIf (bool, vnode) {
 
 // Section of linked objects -- "Linked data"
 function linkedObjsSection (state, actions) {
-  if (state.loading) {
+  if (state.loadingLinks) {
     return h('p', {class: 'muted bold'}, 'Loading related data...')
   }
   if (!state.links || !state.links.links.length) {
@@ -295,7 +292,7 @@ function linkedObjsSection (state, actions) {
 
 // Copied objects section
 function copyObjsSection (state, actions) {
-  if (state.loading) {
+  if (state.loadingCopies) {
     return h('p', {class: 'bold muted'}, 'Loading copies...')
   }
   if (!state.copies || !state.copies.copies.length) {
@@ -410,17 +407,15 @@ function subDataSection (subentry, entry, state, actions) {
     h('div', {
       style: { position: 'absolute', top: '-32px', left: '7.5px' }
     }, [ graphLine() ]),
-    h('span', {class: 'inline-block muted'}, [
-      h('div', {}, [
-        h('a', {
-          onclick: () => {
-            const upa = subentry._key.replace(/:/g, '/')
-            actions.followLink({ name, upa })
-          }
-        }, name),
-        type,
-        narrative
-      ])
+    h('span', {class: 'inline-block muted text-ellipsis-100p'}, [
+      h('a', {
+        onclick: () => {
+          const upa = subentry._key.replace(/:/g, '/')
+          actions.followLink({ name, upa })
+        }
+      }, name),
+      type,
+      narrative
     ])
   ])
 }
