@@ -3,6 +3,7 @@ const { h, app } = require('hyperapp')
 // Get the url query string as an object
 const query = window.location.search.slice(1).split('&')
   .map(s => s.split('='))
+  .map(([key, val]) => [key, decodeURIComponent(val).replace(/['"]/g, '')])
   .reduce((obj, [key, val]) => { obj[key] = val; return obj }, {})
 
 const state = { navHistory: [], obj: {} }
@@ -52,45 +53,45 @@ function newSearch (state, actions, upa) {
       return fetchLinkedObjs(state.upa, state.authToken)
     })
     */
-  fetchLinkedObjs(state.upa, state.authToken)
+  fetchLinkedObjs(state.upa)
     .then(results => {
       console.log('linked results', results)
       actions.update({ links: results, loadingLinks: false })
     })
     .catch(err => actions.update({ error: String(err), loadingLinks: false }))
-  fetchCopies(state.upa, state.authToken)
+  fetchCopies(state.upa)
     .then(results => {
       console.log('copy results', results)
       actions.update({ copies: results, loadingCopies: false })
     })
     .catch(err => actions.update({ error: String(err), loadingCopies: false }))
-  if (searchableWithHomology(state.obj)) {
-    actions.update({ searching: true })
-    fetchHomologs(state.upa, state.authToken)
-      .then(results => {
-        if (!results || !results.length) return
-        console.log('homology results', results)
-        actions.update({ similar: results })
-        const kbaseResults = results.filter(r => 'kbase_id' in r)
-          .map(r => r.kbase_id.replace(/\//g, ':'))
-        console.log('kbase results', kbaseResults)
-        // TODO Find all linked objects for each results with a kbase_id
-        return fetchManyLinkedObjs(kbaseResults, state.authToken)
-      })
-      .then(results => {
-        console.log('homology link results', results)
-        actions.update({ similarLinked: results, searching: false })
-      })
-      .catch(err => actions.update({ error: String(err), searching: false }))
-  }
+  actions.update({ searching: true })
+  fetchHomologs(state.upa)
+    .then(results => {
+      if (!results || !results.length) return
+      console.log('homology results', results)
+      actions.update({ similar: results })
+      const kbaseResults = results.filter(r => 'kbase_id' in r)
+        .map(r => r.kbase_id.replace(/\//g, ':'))
+      console.log('kbase results', kbaseResults)
+      // TODO Find all linked objects for each results with a kbase_id
+      return fetchManyLinkedObjs(kbaseResults)
+    })
+    .then(results => {
+      console.log('homology link results', results)
+      actions.update({ similarLinked: results, searching: false })
+    })
+    .catch(err => actions.update({ error: String(err), searching: false }))
 }
 
+/*
 // Check whether an object is an assembly, genome, or reads, meaning it is
 // searchable by the AssemblyHomologyService
 function searchableWithHomology (obj) {
   const validTypes = ['PairedEndLibrary', 'SingleEndLibrary', 'Genome', 'Assembly', 'ContigSet']
   return obj.ws_type && validTypes.filter(t => RegExp(t).test(obj.ws_type)).length
 }
+*/
 
 // Convert something like "Module.Type-5.0" into just "Type"
 // Returns the input if we cannot match the format
@@ -178,7 +179,6 @@ function view (state, actions) {
 }
 
 function breadcrumbNav (state, actions) {
-  console.log('history', state.navHistory)
   if (!state.navHistory || !state.navHistory.length) return ''
   const items = state.navHistory.map((item, idx) => {
     return h('li', {
@@ -312,7 +312,7 @@ function similarData (state, actions) {
   if (state.searching) {
     return h('p', {
       class: 'muted bold'
-    }, 'Searching for homologous genomes (can take up to 30 seconds)...')
+    }, 'Searching for similar data (can take up to 30 seconds)...')
   }
   if (!state.similar || !state.similar.length) return ''
   return h('div', { class: 'clearfix mt2' }, [
@@ -474,10 +474,7 @@ if (query.tok) {
 
 if (query.upa) {
   const upa = query.upa.replace(/:/g, '/')
-  let name = 'Object ' + upa
-  if (query.name) {
-    name = decodeURIComponent(query.name).replace(/['"]/g, '')
-  }
+  let name = query.name || ('Object ' + upa)
   appActions.followLink({ name, upa })
 }
 
@@ -517,7 +514,7 @@ function fetchLinkedObjs (upa, token) {
     return {links: links, sublinks: sublinks}
   `)
   */
-  const payload = { key: upa.replace(/\//g, ':'), link_limit: 50, sublink_limit: 50 }
+  const payload = { key: upa.replace(/\//g, ':'), link_limit: 10, sublink_limit: 10 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' })
 }
 
@@ -536,7 +533,7 @@ function fetchManyLinkedObjs (upas, token) {
     return {links: links}
   `)
   */
-  const payload = { obj_ids: objIds }
+  const payload = { obj_ids: objIds, link_limit: 10 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_multiple_linked_objects' })
 }
 
@@ -561,7 +558,7 @@ function fetchCopies (upa, token, cb) {
     return {copies: copies, sublinks: sublinks}
   `)
   */
-  const payload = { obj_key: upa.replace(/\//g, ':'), sublink_limit: 25 }
+  const payload = { obj_key: upa.replace(/\//g, ':'), sublink_limit: 10 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_copies' })
 }
 
@@ -614,13 +611,18 @@ window.fetchRandom = fetchRandom
 
 // Make a request to the relation engine api to do an ad-hoc admin query for prototyping
 function aqlQuery (payload, token, params) {
-  const url = 'https://ci.kbase.us/services/relation_engine_api/api/query_results' + queryify(params)
+  const apiUrl = (query.api_url || 'https://ci.kbase.us/services/relation_engine_api')
+    .replace(/\/$/, '') // remove trailing slash
+  const url = apiUrl + '/api/query_results/' + queryify(params)
+  console.log({ url })
   return window.fetch(url, {
     method: 'POST',
+    /*
     headers: {
       // 'Content-Type': 'application/json',
       'Authorization': token
     },
+    */
     mode: 'cors',
     body: JSON.stringify(payload)
   })
