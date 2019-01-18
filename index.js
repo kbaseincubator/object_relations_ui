@@ -1,15 +1,47 @@
 const { h, app } = require('hyperapp')
 
+/* TODO
+- be able to set the environment (ci, prod, appdev, next)
+- generate type links for objects
+- finish formatting the sublinks
+- get the graphline working for sublinks
+- show object aggregate details ("knowledge score") at top
+  - total number of copies and links regardless of perms
+- Click on a row expands it into details -- functionality
+- Click on a row expands it into details -- data
+*/
+
 // Get the url query string as an object
 const query = window.location.search.slice(1).split('&')
   .map(s => s.split('='))
+  // Decode each value and remove any quotes
   .map(([key, val]) => [key, decodeURIComponent(val).replace(/['"]/g, '')])
+  // Convert from an array of arrays to an object
   .reduce((obj, [key, val]) => { obj[key] = val; return obj }, {})
 
 const state = { navHistory: [], obj: {} }
 
-// We just use actions.update for everything to keep it simple
 const actions = {
+  // Click an object to expand its link results
+  expandEntry: (entry) => (state, actions) => {
+    const upa = entry._key.replace(/:/g, '/')
+    entry.expanded = !entry.expanded
+    if (!entry.sublinks || !entry.sublinks.length) {
+      fetchLinkedObjs([upa], state.authToken)
+        .then(results => {
+          if (results && results.links) {
+            entry.sublinks = results.links
+          } else {
+            entry.sublinks = []
+          }
+          actions.update({})
+        })
+        .catch(err => {
+          console.error(err)
+        })
+    }
+    actions.update({})
+  },
   followLink: ({ name, upa }) => (state, actions) => {
     const navHistory = state.navHistory || []
     actions.setObject({ name, upa })
@@ -17,7 +49,6 @@ const actions = {
     actions.update({ navHistory })
   },
   setObject: ({ name, upa }) => (state, actions) => {
-    // window.history.pushState(null, '', '?upa=' + upa + '&name=' + name)
     const obj = { obj_name: name, upa }
     actions.update({ obj, upa })
     newSearch(state, actions, upa)
@@ -41,6 +72,7 @@ function newSearch (state, actions, upa) {
     loadingLinks: true
   })
   /*
+  // Fetch the object itself to get name, type, etc
   fetchObj(state.upa, state.authToken)
     .then(results => {
       if (results) {
@@ -53,18 +85,21 @@ function newSearch (state, actions, upa) {
       return fetchLinkedObjs(state.upa, state.authToken)
     })
     */
-  fetchLinkedObjs(state.upa)
+  // Fetch all objects linked by reference or by provenance
+  fetchLinkedObjs([state.upa], state.authToken)
     .then(results => {
       console.log('linked results', results)
       actions.update({ links: results, loadingLinks: false })
     })
     .catch(err => actions.update({ error: String(err), loadingLinks: false }))
+  // Fetch all copies of this object, either upstream or downstream
   fetchCopies(state.upa)
     .then(results => {
       console.log('copy results', results)
       actions.update({ copies: results, loadingCopies: false })
     })
     .catch(err => actions.update({ error: String(err), loadingCopies: false }))
+  // Do an assembly homology search on the object, then fetch all linked objects for each search result
   actions.update({ searching: true })
   fetchHomologs(state.upa)
     .then(results => {
@@ -75,7 +110,7 @@ function newSearch (state, actions, upa) {
         .map(r => r.kbase_id.replace(/\//g, ':'))
       console.log('kbase results', kbaseResults)
       // TODO Find all linked objects for each results with a kbase_id
-      return fetchManyLinkedObjs(kbaseResults)
+      return fetchLinkedObjs(kbaseResults, state.authToken)
     })
     .then(results => {
       console.log('homology link results', results)
@@ -101,7 +136,7 @@ function typeName (typeStr) {
   return matches[1]
 }
 
-// Generate KBase linksf or an object
+// Generate KBase url links for an object
 function objHrefs (obj) {
   const dataview = 'https://narrative.kbase.us/#dataview/'
   const hrefs = {}
@@ -121,6 +156,9 @@ function objHrefs (obj) {
 
 // Top-level view function
 function view (state, actions) {
+  if (!state.loadingCopies && !state.loadingLinks && !state.links && !state.copies) {
+    return h('p', {class: 'container p2 muted'}, 'No results found.')
+  }
   return h('div', {class: 'container p2 max-width-3'}, [
     // h('h1', {class: 'mt0 mb3'}, 'Relation Engine Object Viewer'),
     /*
@@ -169,7 +207,7 @@ function view (state, actions) {
     ]),
     */
     showIf(state.error, h('p', { class: 'error' }, state.error)),
-    breadcrumbNav(state, actions),
+    // breadcrumbNav(state, actions),
     // backButton(state, actions),
     // objInfo(state, actions),
     linkedObjsSection(state, actions),
@@ -178,6 +216,11 @@ function view (state, actions) {
   ])
 }
 
+function formatDate (date) {
+  return date.getMonth() + '/' + date.getDate() + '/' + date.getFullYear()
+}
+
+/*
 function breadcrumbNav (state, actions) {
   if (!state.navHistory || !state.navHistory.length) return ''
   const items = state.navHistory.map((item, idx) => {
@@ -202,6 +245,7 @@ function breadcrumbNav (state, actions) {
     }
   }, items)
 }
+*/
 
 /*
 // Navigation back button
@@ -265,10 +309,10 @@ function objInfo (state, actions) {
 
 // A bit more readable ternary conditional for use in views
 // Display the vnode if the boolean is truthy
+// Can pass a plain vnode or a function that returns a vnode
 function showIf (bool, vnode) {
   if (bool) {
-    if (typeof vnode === 'function') return vnode()
-    else return vnode
+    return typeof vnode === 'function' ? vnode() : vnode
   }
   return ''
 }
@@ -282,11 +326,10 @@ function linkedObjsSection (state, actions) {
     return h('p', {class: 'muted'}, 'There are no objects linked to this one.')
   }
   const links = state.links.links
-  const sublinks = state.links.sublinks
   return h('div', {class: 'clearfix'}, [
-    header('Linked data', links.length),
-    // filterTools(),
-    h('div', {}, links.map(l => dataSection(sublinks, l, state, actions)))
+    header('Linked Data', links.length),
+    filterTools(),
+    h('div', {}, links.map(link => dataSection(link, state, actions)))
   ])
 }
 
@@ -299,11 +342,11 @@ function copyObjsSection (state, actions) {
     return h('p', {class: 'muted'}, 'There are no copies of this object.')
   }
   const copies = state.copies.copies
-  const sublinks = state.copies.sublinks
+  // const sublinks = state.copies.sublinks
   return h('div', {class: 'clearfix mt2'}, [
     header('Copies', copies.length),
-    // filterTools(),
-    h('div', {}, copies.map(c => dataSection(sublinks, c, state, actions)))
+    filterTools(),
+    h('div', {}, copies.map(copy => dataSection(copy, state, actions)))
   ])
 }
 
@@ -349,30 +392,72 @@ function similarObjSection (entry, state, actions) {
 }
 
 // Section of parent data, with circle icon
-function dataSection (sublinks, entry, state, actions) {
+function dataSection (entry, state, actions) {
   const hrefs = objHrefs(entry)
-  sublinks = sublinks.filter(l => l.parent_id === entry._id)
+  // sublinks = sublinks.filter(l => l.parent_id === entry._id)
   const entryName = entry.obj_name
-  return h('div', {class: 'clearfix py1'}, [
-    h('div', {class: 'h3-5 mb1 clearfix', style: {'whiteSpace': 'nowrap'}}, [
+  return h('div', {}, [
+    h('div', {
+      class: 'h3-5 mt1 clearfix relative result-row',
+      style: {'whiteSpace': 'nowrap'},
+      onclick: ev => { actions.expandEntry(entry) }
+    }, [
       h('span', {class: 'mr1 circle inline-block'}, ''),
-      h('div', {class: 'inline-block text-ellipsis-100p'}, [
-        h('a', {
-          class: 'text-ellipsis-18rem',
-          onclick: ev => {
-            const upa = entry._key.replace(/:/g, '/')
-            actions.followLink({ upa, name: entryName })
-          }
-        }, entryName),
-        ' (', typeName(entry.ws_type), ') ',
-        ' in ',
-        h('a', {href: hrefs.narrative, target: '_blank'}, entry.narr_name)
-      ])
+      h('h4', {class: 'inline-block m0 p0 bold'}, entryName),
+      h('span', {
+        class: 'block bold muted h0-5',
+        style: {
+          paddingLeft: '32px',
+          fontSize: '0.85rem',
+          paddingTop: '2px'
+        }
+      }, [
+        typeName(entry.ws_type),
+        ' · ',
+        entry.owner
+      ]),
+      showIf(entry.expanded, () => h('span', {
+        class: 'circle-line',
+        style: {
+          zIndex: '0',
+          width: '2px',
+          height: '100%',
+          background: '#bbb',
+          position: 'absolute',
+          left: '11px',
+          top: '0px'
+        }
+      }))
     ]),
+    /*
     // Sub-link sections
     h('div', {}, [
-      sublinks.map(subentry => subDataSection(subentry.obj, entry, state, actions))
     ])
+    */
+    // - Narrative name and link
+    // - Author name and link
+    // - Save date
+    showIf(entry.expanded, () => h('div', {
+      class: 'relative mb1 mt1',
+      style: { paddingLeft: '32px', overflow: 'hidden' }
+    }, [
+      h('div', {class: 'small', style: {marginBottom: '0.15rem'}}, [
+        h('a', {href: hrefs.obj, target: '_blank'}, 'Full details for this object'),
+        h('div', { class: 'my1' }, [
+          'Created on ',
+          formatDate(new Date(entry.save_date)),
+          ' by ',
+          h('a', {href: hrefs.owner, target: '_blank'}, entry.owner),
+          ' in the narrative ',
+          h('a', {href: hrefs.narrative, target: '_blank'}, entry.narr_name)
+        ])
+      ]),
+      showIf(entry.sublinks && entry.sublinks.length === 0, () => h('div', { class: 'muted' }, 'No further related data found.')),
+      showIf(entry.sublinks && entry.sublinks.length, () => h('div', {}, [
+        h('h4', {class: 'bold my1 muted'}, 'Related data'),
+        h('ul', {}, entry.sublinks.map(subentry => subDataSection(subentry, entry, state, actions)))
+      ]))
+    ]))
   ])
 }
 
@@ -391,35 +476,21 @@ function subDataSection (subentry, entry, state, actions) {
       h('a', {href: hrefs.narrative, target: '_blank'}, subentry.narr_name)
     ])
   }
-  /*
-  let author = ''
-  if (subentry.owner && subentry.owner !== entry.owner) {
-    author = h('span', {}, [
-      ' by ',
-      h('a', {href: hrefs.owner, target: '_blank'}, subentry.owner)
-    ])
-  }
-  */
-  return h('div', {
-    class: 'relative clearfix mb1',
-    style: { paddingLeft: '32px' }
-  }, [
-    h('div', {
-      style: { position: 'absolute', top: '-32px', left: '7.5px' }
-    }, [ graphLine() ]),
-    h('span', {class: 'inline-block muted text-ellipsis-100p'}, [
-      h('a', {
-        onclick: () => {
-          const upa = subentry._key.replace(/:/g, '/')
-          actions.followLink({ name, upa })
-        }
-      }, name),
-      type,
-      narrative
-    ])
+  // let author = ''
+  // if (subentry.owner && subentry.owner !== entry.owner) {
+  //   author = h('span', {}, [
+  //     ' by ',
+  //     h('a', {href: hrefs.owner, target: '_blank'}, subentry.owner)
+  //   ])
+  // }
+  return h('li', {}, [
+    h('a', {}, name),
+    type,
+    narrative
   ])
 }
 
+/*
 // Little svg line that represents sub-object links
 function graphLine () {
   const style = 'stroke: #bbb; stroke-width: 2'
@@ -434,8 +505,8 @@ function graphLine () {
     h('line', {x1: 4, y1: height, x2: width, y2: height, style})
   ])
 }
+*/
 
-/*
 // Filter results
 function filterTools () {
   return h('div', { class: 'pb1' }, [
@@ -454,7 +525,6 @@ function filterTools () {
     ])
   ])
 }
-*/
 
 // Section header
 function header (text, total) {
@@ -493,72 +563,16 @@ function fetchObj (upa, token) {
 }
 */
 
-function fetchLinkedObjs (upa, token) {
-  // Fetch all linked and sub-linked data from an upa
-  /*
-  const query = (`
-    let obj_id = CONCAT("wsprov_object/", @obj_key)
-    let links = (
-      for obj in 1..1 any obj_id wsprov_links
-      filter obj
-      return obj
-    )
-    let sublinks = (
-      for obj in wsprov_object
-      filter obj in links
-      for obj1 in 1..100 any obj wsprov_links
-        filter obj1
-        limit 10
-        return distinct {parent_id: obj._id, obj: obj1}
-    )
-    return {links: links, sublinks: sublinks}
-  `)
-  */
-  const payload = { key: upa.replace(/\//g, ':'), link_limit: 10, sublink_limit: 10 }
+// Fetch all linked and sub-linked data from an upa
+function fetchLinkedObjs (upas, token) {
+  upas = upas.map(upa => upa.replace(/\//g, ':'))
+  const payload = { obj_keys: upas, link_limit: 20 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' })
-}
-
-// Get 1st-level linked objects for every given object in a list
-function fetchManyLinkedObjs (upas, token) {
-  const objIds = upas.map(u => 'wsprov_object/' + u.replace(/\//g, ':'))
-  /*
-  const query = (`
-    let links = (
-      for obj in wsprov_object
-      filter obj._id in @objIds
-      for obj1 in 1..100 any obj wsprov_links
-        filter obj1
-        return {obj: obj1, parent_id: obj._id}
-    )
-    return {links: links}
-  `)
-  */
-  const payload = { obj_ids: objIds, link_limit: 10 }
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_multiple_linked_objects' })
 }
 
 // Fetch all copies and linked objects of those copies from an upa
 function fetchCopies (upa, token, cb) {
-  /*
-  const query = (`
-    let obj_id = CONCAT("wsprov_object/", @obj_key)
-    let copies = (
-      for obj in 1..100 any obj_id wsprov_copied_into
-      filter obj
-      return obj
-    )
-    let sublinks = (
-      for obj in wsprov_object
-      filter obj in copies
-      for obj1 in 1..100 any obj wsprov_links
-        filter obj1
-        limit 10
-        return distinct {parent_id: obj._id, obj: obj1}
-    )
-    return {copies: copies, sublinks: sublinks}
-  `)
-  */
-  const payload = { obj_key: upa.replace(/\//g, ':'), sublink_limit: 10 }
+  const payload = { obj_key: upa.replace(/\//g, ':'), copy_limit: 20 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_copies' })
 }
 
@@ -570,9 +584,11 @@ function fetchHomologs (upa, token) {
     method: 'get_homologs',
     params: [upa]
   }
+  const headers = {}
+  if (token) headers.Authorization = token
   return window.fetch(url, {
     method: 'POST',
-    headers: { },
+    headers,
     mode: 'cors',
     body: JSON.stringify(payload)
   })
@@ -590,6 +606,7 @@ function fetchRandom () {
   // actions.update({ loadingUpa: true })
   function makeRequest (token) {
     const query = (`
+      let ws_ids = @ws_ids
       for e in wsprov_copied_into
         sort rand()
         limit 1
@@ -614,21 +631,17 @@ function aqlQuery (payload, token, params) {
   const apiUrl = (query.api_url || 'https://ci.kbase.us/services/relation_engine_api')
     .replace(/\/$/, '') // remove trailing slash
   const url = apiUrl + '/api/query_results/' + queryify(params)
-  console.log({ url })
+  const headers = {}
+  if (token) headers.Authorization = token
   return window.fetch(url, {
     method: 'POST',
-    /*
-    headers: {
-      // 'Content-Type': 'application/json',
-      'Authorization': token
-    },
-    */
+    headers,
     mode: 'cors',
     body: JSON.stringify(payload)
   })
     .then(resp => resp.json())
     .then(json => {
-      if (json && json.results && json.results.length) return json.results[0]
+      if (json && json.results) return json.results[0]
       if (json && json.error) throw new Error(json.error)
     })
 }
