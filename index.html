@@ -39,6 +39,14 @@
       display: inline-block;
       vertical-align: top;
     }
+    .circle-line {
+      z-index: 0;
+      width: 2px;
+      height: 100%;
+      background: #bbb;
+      position: absolute;
+      left: 11px;
+    }
     .btn:disabled {
       color: #666;
     }
@@ -172,11 +180,32 @@
     .small {
       font-size: 0.9rem;
     }
-
+    /* New tab link icon */
     a[target="_blank"]::after {
       content: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAQElEQVR42qXKwQkAIAxDUUdxtO6/RBQkQZvSi8I/pL4BoGw/XPkh4XigPmsUgh0626AjRsgxHTkUThsG2T/sIlzdTsp52kSS1wAAAABJRU5ErkJggg==);
       margin: 0 3px 0 5px;
       opacity: 0.5;
+    }
+    .table-lined {
+      width: 100%;
+      border-collpase: collapse;
+      border-spacing: 0;
+    }
+    .table-lined th {
+      text-align: left;
+      padding: 0;
+      border: 0;
+      padding: 0.25rem 0;
+    }
+    .table-lined td {
+      max-width: 18rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0;
+      padding: 0.25rem 0;
+      border: 0;
+      border-top: 1px solid #bbb;
     }
   </style>
 

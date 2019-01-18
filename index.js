@@ -1,7 +1,7 @@
 const { h, app } = require('hyperapp')
+const { fetchLinkedObjs, fetchCopies, fetchHomologs } = require('./utils/apiClients')
 
 /* TODO
-- be able to set the environment (ci, prod, appdev, next)
 - generate type links for objects
 - finish formatting the sublinks
 - get the graphline working for sublinks
@@ -9,15 +9,9 @@ const { h, app } = require('hyperapp')
   - total number of copies and links regardless of perms
 - Click on a row expands it into details -- functionality
 - Click on a row expands it into details -- data
+- object type icons
+- fliparino icon for expanding
 */
-
-// Get the url query string as an object
-const query = window.location.search.slice(1).split('&')
-  .map(s => s.split('='))
-  // Decode each value and remove any quotes
-  .map(([key, val]) => [key, decodeURIComponent(val).replace(/['"]/g, '')])
-  // Convert from an array of arrays to an object
-  .reduce((obj, [key, val]) => { obj[key] = val; return obj }, {})
 
 const state = { navHistory: [], obj: {} }
 
@@ -27,7 +21,7 @@ const actions = {
     const upa = entry._key.replace(/:/g, '/')
     entry.expanded = !entry.expanded
     if (!entry.sublinks || !entry.sublinks.length) {
-      fetchLinkedObjs([upa], state.authToken)
+      fetchLinkedObjs([upa], window._env.authToken)
         .then(results => {
           if (results && results.links) {
             entry.sublinks = results.links
@@ -73,7 +67,7 @@ function newSearch (state, actions, upa) {
   })
   /*
   // Fetch the object itself to get name, type, etc
-  fetchObj(state.upa, state.authToken)
+  fetchObj(state.upa, window._env.authToken)
     .then(results => {
       if (results) {
         actions.update({ obj: results })
@@ -82,11 +76,11 @@ function newSearch (state, actions, upa) {
           actions.update({ obj: { obj_name: 'Object ' + state.upa, upa: state.upa } })
         }
       }
-      return fetchLinkedObjs(state.upa, state.authToken)
+      return fetchLinkedObjs(state.upa, window._env.authToken)
     })
     */
   // Fetch all objects linked by reference or by provenance
-  fetchLinkedObjs([state.upa], state.authToken)
+  fetchLinkedObjs([state.upa], window._env.authToken)
     .then(results => {
       console.log('linked results', results)
       actions.update({ links: results, loadingLinks: false })
@@ -110,7 +104,7 @@ function newSearch (state, actions, upa) {
         .map(r => r.kbase_id.replace(/\//g, ':'))
       console.log('kbase results', kbaseResults)
       // TODO Find all linked objects for each results with a kbase_id
-      return fetchLinkedObjs(kbaseResults, state.authToken)
+      return fetchLinkedObjs(kbaseResults, window._env.authToken)
     })
     .then(results => {
       console.log('homology link results', results)
@@ -138,8 +132,13 @@ function typeName (typeStr) {
 
 // Generate KBase url links for an object
 function objHrefs (obj) {
-  const dataview = 'https://narrative.kbase.us/#dataview/'
+  const url = window._env.kbaseEndpoint
+  const dataview = url + '/#dataview/'
+  const typeUrl = url + '/#spec/type/'
   const hrefs = {}
+  if (obj.ws_type) {
+    hrefs.type = typeUrl + obj.ws_type
+  }
   if (obj.upa) {
     hrefs.obj = dataview + obj.upa
   } else if (obj._key) {
@@ -149,7 +148,7 @@ function objHrefs (obj) {
     hrefs.narrative = `https://narrative.kbase.us/narrative/ws.${obj.workspace_id}.obj.1`
   }
   if (obj.owner) {
-    hrefs.owner = 'https://narrative.kbase.us/#people/' + obj.owner
+    hrefs.owner = url + '/#people/' + obj.owner
   }
   return hrefs
 }
@@ -180,7 +179,7 @@ function view (state, actions) {
             actions.update({ authToken: ev.currentTarget.value })
             return ev
           },
-          value: state.authToken
+          value: window._env.authToken
         })
       ]),
       h('fieldset', {class: 'col col-6'}, [
@@ -195,14 +194,14 @@ function view (state, actions) {
           value: state.upa
         }),
         showIf(
-          state.authToken && !state.loadingUpa,
+          window._env.authToken && !state.loadingUpa,
           h('a', { class: 'btn ml2 h5', onclick: () => fetchRandom(state, actions) }, 'Get random ID')
         ),
         showIf(state.loadingUpa, h('p', { class: 'inline-block ml2 m0' }, 'Loading...'))
       ]),
       h('fieldset', {class: 'clearfix col-12 pt2'}, [
-        h('button', {disabled: !state.authToken, class: 'btn', type: 'submit'}, 'Submit'),
-        showIf(!state.authToken, h('p', { class: 'pl2 inline-block' }, 'Please enter an auth token first.'))
+        h('button', {disabled: !window._env.authToken, class: 'btn', type: 'submit'}, 'Submit'),
+        showIf(!window._env.authToken, h('p', { class: 'pl2 inline-block' }, 'Please enter an auth token first.'))
       ])
     ]),
     */
@@ -402,6 +401,7 @@ function dataSection (entry, state, actions) {
       style: {'whiteSpace': 'nowrap'},
       onclick: ev => { actions.expandEntry(entry) }
     }, [
+      showIf(entry.expanded, () => h('span', { class: 'circle-line' })),
       h('span', {class: 'mr1 circle inline-block'}, ''),
       h('h4', {class: 'inline-block m0 p0 bold'}, entryName),
       h('span', {
@@ -415,33 +415,20 @@ function dataSection (entry, state, actions) {
         typeName(entry.ws_type),
         ' · ',
         entry.owner
-      ]),
-      showIf(entry.expanded, () => h('span', {
-        class: 'circle-line',
-        style: {
-          zIndex: '0',
-          width: '2px',
-          height: '100%',
-          background: '#bbb',
-          position: 'absolute',
-          left: '11px',
-          top: '0px'
-        }
-      }))
+      ])
     ]),
-    /*
-    // Sub-link sections
-    h('div', {}, [
-    ])
-    */
     // - Narrative name and link
     // - Author name and link
     // - Save date
     showIf(entry.expanded, () => h('div', {
       class: 'relative mb1 mt1',
-      style: { paddingLeft: '32px', overflow: 'hidden' }
+      style: { paddingLeft: '32px' }
     }, [
-      h('div', {class: 'small', style: {marginBottom: '0.15rem'}}, [
+      h('span', {
+        class: 'circle-line',
+        style: { top: '-0.5rem' }
+      }),
+      h('div', {style: {marginBottom: '0.15rem'}}, [
         h('a', {href: hrefs.obj, target: '_blank'}, 'Full details for this object'),
         h('div', { class: 'my1' }, [
           'Created on ',
@@ -452,10 +439,27 @@ function dataSection (entry, state, actions) {
           h('a', {href: hrefs.narrative, target: '_blank'}, entry.narr_name)
         ])
       ]),
-      showIf(entry.sublinks && entry.sublinks.length === 0, () => h('div', { class: 'muted' }, 'No further related data found.')),
+      showIf(
+        entry.sublinks && entry.sublinks.length === 0,
+        () => h('div', { class: 'muted' }, 'No further related data found.')
+      ),
       showIf(entry.sublinks && entry.sublinks.length, () => h('div', {}, [
-        h('h4', {class: 'bold my1 muted'}, 'Related data'),
-        h('ul', {}, entry.sublinks.map(subentry => subDataSection(subentry, entry, state, actions)))
+        h('h4', {class: 'bold my1 muted'}, 'Related Objects'),
+        h('table', {
+          class: 'table-lined'
+        }, [
+          h('thead', {}, [
+            h('tr', {}, [
+              h('th', {}, [ 'Object' ]),
+              h('th', {}, [ 'Type' ]),
+              h('th', {}, [ 'Narrative' ]),
+              h('th', {}, [ 'Author' ])
+            ])
+          ]),
+          h('tbody', {},
+            entry.sublinks.map(subentry => subDataSection(subentry, entry, state, actions))
+          )
+        ])
       ]))
     ]))
   ])
@@ -464,29 +468,17 @@ function dataSection (entry, state, actions) {
 // Section of sublinked objects with little graph lines
 function subDataSection (subentry, entry, state, actions) {
   const hrefs = objHrefs(subentry)
-  let name = subentry.obj_name
-  let type = ''
-  if (subentry.ws_type) {
-    type = ' (' + typeName(subentry.ws_type) + ')'
-  }
-  let narrative = ''
-  if (subentry.narr_name && subentry.narr_name !== entry.narr_name) {
-    narrative = h('span', {}, [
-      ' in ',
-      h('a', {href: hrefs.narrative, target: '_blank'}, subentry.narr_name)
+  return h('tr', {}, [
+    h('td', {}, [
+      h('a', { href: hrefs.obj, target: '_blank' }, subentry.obj_name)
+    ]),
+    h('td', {}, [ typeName(subentry.ws_type) ]),
+    h('td', {}, [
+      h('a', { href: hrefs.narrative, target: '_blank' }, subentry.narr_name)
+    ]),
+    h('td', {}, [
+      h('a', { href: hrefs.owner, target: '_blank' }, subentry.owner)
     ])
-  }
-  // let author = ''
-  // if (subentry.owner && subentry.owner !== entry.owner) {
-  //   author = h('span', {}, [
-  //     ' by ',
-  //     h('a', {href: hrefs.owner, target: '_blank'}, subentry.owner)
-  //   ])
-  // }
-  return h('li', {}, [
-    h('a', {}, name),
-    type,
-    narrative
   ])
 }
 
@@ -538,119 +530,49 @@ function header (text, total) {
 const container = document.querySelector('#hyperapp-container')
 const appActions = app(state, actions, view, container)
 
-if (query.tok) {
-  appActions.update({ authToken: query.tok })
+// This UI is used in an iframe, so we receive post messages from a parent window
+window.addEventListener('message', receiveMessage, false)
+window._env = {
+  kbaseEndpoint: 'https://ci.kbase.us',
+  sketchURL: 'https://kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service',
+  relEngURL: 'https://ci.kbase.us/services/relation_engine_api',
+  authToken: null
 }
-
-if (query.upa) {
-  const upa = query.upa.replace(/:/g, '/')
-  let name = query.name || ('Object ' + upa)
-  appActions.followLink({ name, upa })
-}
-
-// window.history.pushState(null, '', '') // clear out the url query params
-
-/*
-function fetchObj (upa, token) {
-  // Fetch info about an object
-  const query = (`
-    for obj in wsprov_object
-      filter obj._key == @obj_key
-      return obj
-  `)
-  const payload = { query, obj_key: upa.replace(/\//g, ':') }
-  return aqlQuery(payload, token)
-}
-*/
-
-// Fetch all linked and sub-linked data from an upa
-function fetchLinkedObjs (upas, token) {
-  upas = upas.map(upa => upa.replace(/\//g, ':'))
-  const payload = { obj_keys: upas, link_limit: 20 }
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' })
-}
-
-// Fetch all copies and linked objects of those copies from an upa
-function fetchCopies (upa, token, cb) {
-  const payload = { obj_key: upa.replace(/\//g, ':'), copy_limit: 20 }
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_copies' })
-}
-
-// Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
-// For each homolog with a kbase_id, fetch the sub-links
-function fetchHomologs (upa, token) {
-  const url = 'https://kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service'
-  const payload = {
-    method: 'get_homologs',
-    params: [upa]
+function receiveMessage (ev) {
+  let data
+  try {
+    data = JSON.parse(ev.data)
+  } catch (e) {
+    console.error(e)
+    return
   }
-  const headers = {}
-  if (token) headers.Authorization = token
-  return window.fetch(url, {
-    method: 'POST',
-    headers,
-    mode: 'cors',
-    body: JSON.stringify(payload)
-  })
-    .then(resp => resp.json())
-    .then(function (json) {
-      if (json && json.result && json.result.distances && json.result.distances.length) {
-        return json.result.distances
-      }
-    })
-}
-
-// Fetch a random object to search on
-// We find an object that has at least 1 copy, so the data is somewhat interesting
-function fetchRandom () {
-  // actions.update({ loadingUpa: true })
-  function makeRequest (token) {
-    const query = (`
-      let ws_ids = @ws_ids
-      for e in wsprov_copied_into
-        sort rand()
-        limit 1
-        return e._from
-    `)
-    const payload = { query }
-    return aqlQuery(payload, token)
+  if (!(data.method in window._messageHandlers)) {
+    console.error('Unknown method: ' + data.method)
+    console.log('Docs: ' + 'https://github.com/kbaseincubator/object_relations_ui')
+    return
   }
-  makeRequest(query.tok)
-    .then(result => {
-      const upa = result.replace('wsprov_object/', '').replace(/:/g, '/')
-      console.log('random upa:', upa)
-      // actions.update({ upa })
-    })
-    // .then(() => actions.update({ loadingUpa: false, error: null }))
-    .catch(err => { console.error(err) })
-}
-window.fetchRandom = fetchRandom
-
-// Make a request to the relation engine api to do an ad-hoc admin query for prototyping
-function aqlQuery (payload, token, params) {
-  const apiUrl = (query.api_url || 'https://ci.kbase.us/services/relation_engine_api')
-    .replace(/\/$/, '') // remove trailing slash
-  const url = apiUrl + '/api/query_results/' + queryify(params)
-  const headers = {}
-  if (token) headers.Authorization = token
-  return window.fetch(url, {
-    method: 'POST',
-    headers,
-    mode: 'cors',
-    body: JSON.stringify(payload)
-  })
-    .then(resp => resp.json())
-    .then(json => {
-      if (json && json.results) return json.results[0]
-      if (json && json.error) throw new Error(json.error)
-    })
+  window._messageHandlers[data.method](data.params)
 }
 
-// Convert a js object into url querystring params
-function queryify (params) {
-  const items = []
-  for (let name in params) {
-    items.push(encodeURIComponent(name) + '=' + encodeURIComponent(params[name]))
+window._messageHandlers = {
+  setUPA: function (params) {
+    const upa = params.upa
+    const name = params.name || ('Object ' + upa)
+    appActions.followLink({ name, upa })
+  },
+  setKBaseEndpoint: function (params) {
+    window._env.kbaseEndpoint = params.url.replace(/\/$/, '')
+  },
+  setRelEngURL: function (params) {
+    window._env.relEngURL = params.url.replace(/\/$/, '')
+  },
+  setSketchURL: function (params) {
+    window._env.sketchURL = params.url.replace(/\/$/, '')
+  },
+  setAuthToken: function (params) {
+    window._env.authToken = params.token
   }
-  return '?' + items.join('&')
 }
+
+// TODO remove this -- testing purposes only
+window._messageHandlers.setUPA({ upa: '15/8/1' })
