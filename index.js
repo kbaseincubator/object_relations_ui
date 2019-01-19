@@ -15,6 +15,8 @@ const icons = require('./utils/icons')
 - public and private filter functionality
 - ++ how to address pagination and expansion of results via arango
 - basic browser compat testing
+extras
+- sort nested related tables by column
 */
 
 const state = { navHistory: [], obj: {} }
@@ -174,6 +176,7 @@ function view (state, actions) {
     formElem,
     showIf(state.error, h('p', { class: 'error' }, state.error)),
     // objInfo(state, actions),
+    h('p', {}, ['Total relationships for this object: ', h('span', { class: 'bold' }, 999)]),
     linkedObjsSection(state, actions),
     copyObjsSection(state, actions),
     similarData(state, actions)
@@ -182,6 +185,7 @@ function view (state, actions) {
 
 function form (state, actions) {
   return h('form', {
+    class: 'mb3',
     onsubmit: ev => {
       ev.preventDefault()
       const formData = serialize(ev.currentTarget, { hash: true })
