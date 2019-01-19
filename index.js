@@ -609,4 +609,3 @@ window._messageHandlers = {
 
 // TODO remove this -- testing purposes only
 window._messageHandlers.setUPA({ upa: '15/8/1' })
-window._messageHandlers.setAuthToken({ token: 'OTXUGEN5KO6PA4IHHDRW6OVTVD46DXCG' })
