@@ -34,18 +34,39 @@
     .circle {
       height: 24px;
       width: 24px;
-      background-color: #bbb;
+      background: rgb(58, 183, 135);
       border-radius: 50%;
       display: inline-block;
       vertical-align: top;
+      font-size: 0.6rem;
+      font-weight: bold;
+      text-align: center;
+      line-height: 2.6;
+      color: white;
     }
     .circle-line {
-      z-index: 0;
+      z-index: -1;
       width: 2px;
       height: 100%;
-      background: #bbb;
+      background: rgb(58, 183, 135);
       position: absolute;
       left: 11px;
+    }
+    .caret-parent:hover .caret-up,
+    .caret-parent:hover .caret-down {
+      display: inline-block;
+    }
+    .caret-up,
+    .caret-down {
+      display: none;
+      margin-left: 0.5rem;
+      color: #888;
+    }
+    .caret-down:after {
+      content: '⭡';
+    }
+    .caret-up:after {
+ 	    content: '⭣';
     }
     .btn:disabled {
       color: #666;
@@ -180,7 +201,7 @@
     .small {
       font-size: 0.9rem;
     }
-    /* New tab link icon */
+    /* New tab link with icon */
     a[target="_blank"]::after {
       content: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAQElEQVR42qXKwQkAIAxDUUdxtO6/RBQkQZvSi8I/pL4BoGw/XPkh4XigPmsUgh0626AjRsgxHTkUThsG2T/sIlzdTsp52kSS1wAAAABJRU5ErkJggg==);
       margin: 0 3px 0 5px;
@@ -193,7 +214,6 @@
     }
     .table-lined th {
       text-align: left;
-      padding: 0;
       border: 0;
       padding: 0.25rem 0;
     }
@@ -202,12 +222,13 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      padding: 0;
       padding: 0.25rem 0;
+      padding-right: 0.5rem;
       border: 0;
       border-top: 1px solid #bbb;
     }
   </style>
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
 
 </head>
 

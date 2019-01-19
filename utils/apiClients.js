@@ -22,7 +22,9 @@ function fetchHomologs (upa, token) {
     params: [upa]
   }
   const headers = {}
-  if (token) headers.Authorization = token
+  if (window._env.authToken) {
+    headers.Authorization = window._env.authToken
+  }
   return window.fetch(url, {
     method: 'POST',
     headers,

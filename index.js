@@ -1,16 +1,20 @@
 const { h, app } = require('hyperapp')
 const { fetchLinkedObjs, fetchCopies, fetchHomologs } = require('./utils/apiClients')
+const serialize = require('form-serialize')
+const icons = require('./utils/icons')
 
 /* TODO
-- generate type links for objects
-- finish formatting the sublinks
-- get the graphline working for sublinks
 - show object aggregate details ("knowledge score") at top
   - total number of copies and links regardless of perms
-- Click on a row expands it into details -- functionality
-- Click on a row expands it into details -- data
-- object type icons
-- fliparino icon for expanding
+- type dropdown UI
+- type dropdown data
+- type dropdown filter functionality
+- owner dropdown UI and data
+- owner dropdown filter functionality
+- public and private UI
+- public and private filter functionality
+- ++ how to address pagination and expansion of results via arango
+- basic browser compat testing
 */
 
 const state = { navHistory: [], obj: {} }
@@ -20,6 +24,7 @@ const actions = {
   expandEntry: (entry) => (state, actions) => {
     const upa = entry._key.replace(/:/g, '/')
     entry.expanded = !entry.expanded
+    entry.loading = true
     if (!entry.sublinks || !entry.sublinks.length) {
       fetchLinkedObjs([upa], window._env.authToken)
         .then(results => {
@@ -28,9 +33,11 @@ const actions = {
           } else {
             entry.sublinks = []
           }
+          entry.loading = false
           actions.update({})
         })
         .catch(err => {
+          entry.loading = false
           console.error(err)
         })
     }
@@ -97,8 +104,8 @@ function newSearch (state, actions, upa) {
   actions.update({ searching: true })
   fetchHomologs(state.upa)
     .then(results => {
-      if (!results || !results.length) return
       console.log('homology results', results)
+      if (!results || !results.length) return
       actions.update({ similar: results })
       const kbaseResults = results.filter(r => 'kbase_id' in r)
         .map(r => r.kbase_id.replace(/\//g, ':'))
@@ -155,59 +162,17 @@ function objHrefs (obj) {
 
 // Top-level view function
 function view (state, actions) {
+  const formElem = showIf(window.location.search === '?form', () => form(state, actions))
+  // No results found for this object -- show a simple message
   if (!state.loadingCopies && !state.loadingLinks && !state.links && !state.copies) {
-    return h('p', {class: 'container p2 muted'}, 'No results found.')
+    return h('div', {class: 'container p2'}, [
+      formElem,
+      h('p', {}, 'No results found.')
+    ])
   }
   return h('div', {class: 'container p2 max-width-3'}, [
-    // h('h1', {class: 'mt0 mb3'}, 'Relation Engine Object Viewer'),
-    /*
-    h('form', {
-      onsubmit: ev => {
-        ev.preventDefault()
-        actions.update({ navHistory: [] })
-        newSearch(state, actions, state.upa)
-      }
-    }, [
-      h('fieldset', {class: 'col col-4'}, [
-        h('label', {class: 'block mb2 bold'}, 'KBase auth token (CI)'),
-        h('input', {
-          class: 'input p1',
-          required: true,
-          type: 'password',
-          name: 'token',
-          oninput: ev => {
-            actions.update({ authToken: ev.currentTarget.value })
-            return ev
-          },
-          value: window._env.authToken
-        })
-      ]),
-      h('fieldset', {class: 'col col-6'}, [
-        h('label', {class: 'block mb2 bold'}, 'Object Address (Prod)'),
-        h('input', {
-          placeholder: '1/2/3',
-          class: 'input p1',
-          required: true,
-          type: 'text',
-          name: 'upa',
-          input: ev => actions.update({ upa: ev.currentTarget.value }),
-          value: state.upa
-        }),
-        showIf(
-          window._env.authToken && !state.loadingUpa,
-          h('a', { class: 'btn ml2 h5', onclick: () => fetchRandom(state, actions) }, 'Get random ID')
-        ),
-        showIf(state.loadingUpa, h('p', { class: 'inline-block ml2 m0' }, 'Loading...'))
-      ]),
-      h('fieldset', {class: 'clearfix col-12 pt2'}, [
-        h('button', {disabled: !window._env.authToken, class: 'btn', type: 'submit'}, 'Submit'),
-        showIf(!window._env.authToken, h('p', { class: 'pl2 inline-block' }, 'Please enter an auth token first.'))
-      ])
-    ]),
-    */
+    formElem,
     showIf(state.error, h('p', { class: 'error' }, state.error)),
-    // breadcrumbNav(state, actions),
-    // backButton(state, actions),
     // objInfo(state, actions),
     linkedObjsSection(state, actions),
     copyObjsSection(state, actions),
@@ -215,58 +180,57 @@ function view (state, actions) {
   ])
 }
 
-function formatDate (date) {
-  return date.getMonth() + '/' + date.getDate() + '/' + date.getFullYear()
-}
-
-/*
-function breadcrumbNav (state, actions) {
-  if (!state.navHistory || !state.navHistory.length) return ''
-  const items = state.navHistory.map((item, idx) => {
-    return h('li', {
-      class: 'inline-block breadcrumb'
-    }, [
-      h('a', {
-        onclick: () => {
-          console.log('going back..')
-          const jumpTo = state.navHistory[idx]
-          actions.update({ navHistory: state.navHistory.slice(0, idx + 1) })
-          actions.setObject({ name: jumpTo.name, upa: jumpTo.upa })
-        }
-      }, item.name)
+function form (state, actions) {
+  return h('form', {
+    onsubmit: ev => {
+      ev.preventDefault()
+      const formData = serialize(ev.currentTarget, { hash: true })
+      window._messageHandlers.setKBaseEndpoint({ url: formData.endpoint })
+      window._messageHandlers.setAuthToken({ token: formData.token })
+      window._messageHandlers.setUPA({ upa: formData.upa })
+      newSearch(state, actions, state.upa)
+    }
+  }, [
+    h('fieldset', {class: 'inline-block mr2'}, [
+      h('label', {class: 'block mb2 bold'}, 'KBase endpoint'),
+      h('input', {
+        class: 'input p1',
+        required: true,
+        type: 'text',
+        name: 'endpoint',
+        value: window._env.kbaseEndpoint
+      })
+    ]),
+    h('fieldset', {class: 'inline-block mr2'}, [
+      h('label', {class: 'block mb2 bold'}, 'Auth token'),
+      h('input', {
+        class: 'input p1',
+        required: true,
+        type: 'password',
+        name: 'token',
+        value: window._env.authToken
+      })
+    ]),
+    h('fieldset', {class: 'inline-block'}, [
+      h('label', {class: 'block mb2 bold'}, 'Object address'),
+      h('input', {
+        placeholder: '1/2/3',
+        class: 'input p1',
+        required: true,
+        type: 'text',
+        name: 'upa',
+        value: state.upa
+      })
+    ]),
+    h('fieldset', {class: 'clearfix col-12 pt2'}, [
+      h('button', {class: 'btn', type: 'submit'}, 'Submit')
     ])
-  }).slice(Math.max(state.navHistory.length - 3, 0)) // Only take the last 3 items
-  return h('ul', {
-    class: 'm0 p0',
-    style: {
-      overflow: 'hidden',
-      whiteSpace: 'nowrap'
-    }
-  }, items)
+  ])
 }
-*/
 
-/*
-// Navigation back button
-function backButton (state, actions) {
-  console.log('nav history', state.navHistory)
-  if (!state.navHistory || !(state.navHistory.length > 1)) return ''
-  return h('button', {
-    class: 'btn inline-block mr2',
-    style: {
-      // Fix the vertical alignment with text next to it
-      position: 'relative',
-      top: '-2px'
-    },
-    onclick: () => {
-      const last = state.navHistory.pop()
-      state.upa = last.upa
-      actions.update({ navHistory: state.navHistory, upa: state.upa, obj: { obj_name: last.name, upa: last.upa } })
-      newSearch(state, actions, last.upa)
-    }
-  }, '⬅ Back')
+function formatDate (date) {
+  return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear()
 }
-*/
 
 /*
 // Generic object info view
@@ -319,23 +283,34 @@ function showIf (bool, vnode) {
 // Section of linked objects -- "Linked data"
 function linkedObjsSection (state, actions) {
   if (state.loadingLinks) {
-    return h('p', {class: 'muted bold'}, 'Loading related data...')
+    return h('div', {}, [
+      header('Linked Data', 'Loading...'),
+      loadingBoxes()
+    ])
+    // return h('p', {class: 'muted bold'}, 'Loading related data...')
   }
   if (!state.links || !state.links.links.length) {
     return h('p', {class: 'muted'}, 'There are no objects linked to this one.')
   }
   const links = state.links.links
-  return h('div', {class: 'clearfix'}, [
-    header('Linked Data', links.length),
+  return h('div', {}, [
+    header('Linked Data', links.length + ' total'),
     filterTools(),
-    h('div', {}, links.map(link => dataSection(link, state, actions)))
+    h('div', {}, links.map(link => {
+      // Subtitle text under the header for each link result
+      const subText = [typeName(link.ws_type), link.owner]
+      return dataSection(link, subText, state, actions)
+    }))
   ])
 }
 
 // Copied objects section
 function copyObjsSection (state, actions) {
   if (state.loadingCopies) {
-    return h('p', {class: 'bold muted'}, 'Loading copies...')
+    return h('div', {}, [
+      header('Copies', 'Loading...'),
+      loadingBoxes()
+    ])
   }
   if (!state.copies || !state.copies.copies.length) {
     return h('p', {class: 'muted'}, 'There are no copies of this object.')
@@ -343,67 +318,73 @@ function copyObjsSection (state, actions) {
   const copies = state.copies.copies
   // const sublinks = state.copies.sublinks
   return h('div', {class: 'clearfix mt2'}, [
-    header('Copies', copies.length),
+    header('Copies', copies.length + ' total'),
     filterTools(),
-    h('div', {}, copies.map(copy => dataSection(copy, state, actions)))
+    h('div', {}, copies.map(copy => {
+      // Subtitle text under the header for each link result
+      const subText = [typeName(copy.ws_type), copy.owner]
+      return dataSection(copy, subText, state, actions)
+    }))
   ])
 }
 
 // Similar data section (search results from the assembly homology service)
 function similarData (state, actions) {
   if (state.searching) {
-    return h('p', {
-      class: 'muted bold'
-    }, 'Searching for similar data (can take up to 30 seconds)...')
+    return h('div', {}, [
+      header('Similar Data', 'Loading...'),
+      loadingBoxes()
+    ])
   }
   if (!state.similar || !state.similar.length) return ''
   return h('div', { class: 'clearfix mt2' }, [
-    header('Similar data', state.similar.length),
-    h('div', {}, state.similar.map(s => similarObjSection(s, state, actions)))
-  ])
-}
-
-// Section for a single similar objects, with all sub-linked objects
-function similarObjSection (entry, state, actions) {
-  let distance
-  if (entry.dist === 0) {
-    distance = [h('span', {class: 'bold'}, 'exact match')]
-  } else {
-    distance = [h('span', {class: 'bold'}, entry.dist), ' distance']
-  }
-  const readableNS = entry.namespaceid.replace('_', ' ')
-  const entryName = entry.sciname || entry.sourceid
-  return h('div', {class: 'clearfix py1'}, [
-    h('div', {class: 'h3-5 mb1'}, [
-      h('p', {class: 'semi-muted mb0-5 my0 h4'}, distance),
-      h('span', {class: 'mr1 circle left'}, ''),
-      h('div', {class: 'clearfix left'}, [
-        h('a', {
-          onclick: () => {
-            const upa = entry.kbase_id
-            actions.followLink({ name: entryName, upa })
-          }
-        }, entryName),
-        h('span', { class: 'muted' }, [' (', readableNS, ')'])
-      ])
-    ])
+    header('Similar data', state.similar.length + ' total'),
+    h('div', {}, state.similar.map(entry => {
+      const readableNS = entry.namespaceid.replace('_', ' ')
+      let distance
+      if (entry.dist === 0) {
+        distance = 'exact match'
+      } else {
+        distance = entry.dist + ' distance'
+      }
+      const subText = [distance, readableNS]
+      entry.ws_type = 'Assembly' // TODO check for other types somehow
+      entry.obj_name = entry.sciname || entry.sourceid
+      if (entry.kbase_id) {
+        entry._key = entry.kbase_id.replace(/\//g, ':')
+      }
+      return dataSection(entry, subText, state, actions)
+    }))
   ])
 }
 
 // Section of parent data, with circle icon
-function dataSection (entry, state, actions) {
+// You can pass in some subtext (array of strings), which goes below the main title
+function dataSection (entry, subText, state, actions) {
   const hrefs = objHrefs(entry)
   // sublinks = sublinks.filter(l => l.parent_id === entry._id)
   const entryName = entry.obj_name
+  const type = typeName(entry.ws_type)
+  const iconColor = icons.colors[type]
+  const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 3).join('')
   return h('div', {}, [
     h('div', {
-      class: 'h3-5 mt1 clearfix relative result-row',
+      class: 'h3-5 mt1 clearfix relative result-row caret-parent',
       style: {'whiteSpace': 'nowrap'},
-      onclick: ev => { actions.expandEntry(entry) }
+      onclick: ev => {
+        if (entry._key) actions.expandEntry(entry)
+      }
     }, [
-      showIf(entry.expanded, () => h('span', { class: 'circle-line' })),
-      h('span', {class: 'mr1 circle inline-block'}, ''),
-      h('h4', {class: 'inline-block m0 p0 bold'}, entryName),
+      showIf(entry.expanded, () => h('span', { style: { background: iconColor }, class: 'circle-line' })),
+      h('span', {
+        class: 'mr1 circle inline-block',
+        style: { background: iconColor }
+      }, [ iconInitial ]),
+      h('h4', {class: 'inline-block m0 p0 bold'}, [
+        entryName,
+        showIf(!entry.expanded, () => h('span', { class: 'caret-up' })),
+        showIf(entry.expanded, () => h('span', { class: 'caret-down' }))
+      ]),
       h('span', {
         class: 'block bold muted h0-5',
         style: {
@@ -411,11 +392,7 @@ function dataSection (entry, state, actions) {
           fontSize: '0.85rem',
           paddingTop: '2px'
         }
-      }, [
-        typeName(entry.ws_type),
-        ' · ',
-        entry.owner
-      ])
+      }, subText.join(' · '))
     ]),
     // - Narrative name and link
     // - Author name and link
@@ -426,25 +403,31 @@ function dataSection (entry, state, actions) {
     }, [
       h('span', {
         class: 'circle-line',
-        style: { top: '-0.5rem' }
+        style: { top: '-0.5rem', background: iconColor }
       }),
       h('div', {style: {marginBottom: '0.15rem'}}, [
-        h('a', {href: hrefs.obj, target: '_blank'}, 'Full details for this object'),
-        h('div', { class: 'my1' }, [
-          'Created on ',
-          formatDate(new Date(entry.save_date)),
-          ' by ',
-          h('a', {href: hrefs.owner, target: '_blank'}, entry.owner),
-          ' in the narrative ',
-          h('a', {href: hrefs.narrative, target: '_blank'}, entry.narr_name)
-        ])
+        h('a', {href: hrefs.obj, target: '_blank'}, 'Full details'),
+        showIf(entry.save_date, () =>
+          h('div', { class: 'my1' }, [
+            'Created on ',
+            formatDate(new Date(entry.save_date)),
+            ' by ',
+            h('a', {href: hrefs.owner, target: '_blank'}, entry.owner),
+            ' in the narrative ',
+            h('a', {href: hrefs.narrative, target: '_blank'}, entry.narr_name)
+          ])
+        )
       ]),
+      showIf(entry.loading && !(entry.sublinks && entry.sublinks.length), () => h('div', {}, [
+        h('p', {class: 'bold my1 muted'}, 'Loading related objects...'),
+        loadingTable()
+      ])),
       showIf(
         entry.sublinks && entry.sublinks.length === 0,
         () => h('div', { class: 'muted' }, 'No further related data found.')
       ),
       showIf(entry.sublinks && entry.sublinks.length, () => h('div', {}, [
-        h('h4', {class: 'bold my1 muted'}, 'Related Objects'),
+        h('h4', {class: 'bold my1 muted'}, entry.sublinks.length + ' Related Objects'),
         h('table', {
           class: 'table-lined'
         }, [
@@ -468,7 +451,7 @@ function dataSection (entry, state, actions) {
 // Section of sublinked objects with little graph lines
 function subDataSection (subentry, entry, state, actions) {
   const hrefs = objHrefs(subentry)
-  return h('tr', {}, [
+  return h('tr', { class: 'semi-muted' }, [
     h('td', {}, [
       h('a', { href: hrefs.obj, target: '_blank' }, subentry.obj_name)
     ]),
@@ -519,10 +502,56 @@ function filterTools () {
 }
 
 // Section header
-function header (text, total) {
+function header (text, rightText) {
   return h('div', {class: 'my2 py1 border-bottom'}, [
     h('h2', {class: 'inline-block m0 h3'}, text),
-    h('span', {class: 'right inline-block'}, [total, ' total'])
+    h('span', {class: 'right inline-block'}, [rightText])
+  ])
+}
+
+function loadingBoxes () {
+  const background = '#eee'
+  const row = () => {
+    return h('div', { class: 'mt2' }, [
+      h('div', {
+        class: 'inline-block',
+        style: {
+          width: '30px',
+          height: '30px',
+          borderRadius: '40px',
+          background
+        }
+      }),
+      h('div', {
+        class: 'inline-block ml2',
+        style: {
+          width: '300px',
+          height: '30px',
+          background
+        }
+      })
+    ])
+  }
+  return h('div', {}, [ row(), row(), row(), row() ])
+}
+
+function loadingTable () {
+  const background = '#eee'
+  const td = () => {
+    return h('td', {
+      class: 'inline-block mr2 mb2',
+      style: {
+        height: '20px',
+        width: '200px',
+        background
+      }
+    })
+  }
+  const row = () => {
+    return h('tr', {}, [ td(), td(), td() ])
+  }
+  return h('table', {}, [
+    row(), row(), row()
   ])
 }
 
@@ -534,7 +563,7 @@ const appActions = app(state, actions, view, container)
 window.addEventListener('message', receiveMessage, false)
 window._env = {
   kbaseEndpoint: 'https://ci.kbase.us',
-  sketchURL: 'https://kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service',
+  sketchURL: 'https://ci.kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service',
   relEngURL: 'https://ci.kbase.us/services/relation_engine_api',
   authToken: null
 }
@@ -576,3 +605,4 @@ window._messageHandlers = {
 
 // TODO remove this -- testing purposes only
 window._messageHandlers.setUPA({ upa: '15/8/1' })
+window._messageHandlers.setAuthToken({ token: 'OTXUGEN5KO6PA4IHHDRW6OVTVD46DXCG' })
