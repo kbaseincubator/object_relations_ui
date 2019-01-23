@@ -3,13 +3,13 @@ module.exports = { fetchLinkedObjs, fetchCopies, fetchHomologs, fetchObj }
 // Fetch all linked and sub-linked data from an upa
 function fetchLinkedObjs (upas, token) {
   upas = upas.map(upa => upa.replace(/\//g, ':'))
-  const payload = { obj_keys: upas, link_limit: 20 }
+  const payload = { obj_keys: upas, link_limit: 50 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' })
 }
 
 // Fetch all copies and linked objects of those copies from an upa
 function fetchCopies (upa, token, cb) {
-  const payload = { obj_key: upa.replace(/\//g, ':'), copy_limit: 20 }
+  const payload = { obj_key: upa.replace(/\//g, ':'), copy_limit: 50 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_copies' })
 }
 

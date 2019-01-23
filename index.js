@@ -1,19 +1,23 @@
 const { h, app } = require('hyperapp')
 const { fetchLinkedObjs, fetchCopies, fetchHomologs } = require('./utils/apiClients')
 const serialize = require('form-serialize')
+
 const icons = require('./utils/icons')
+const showIf = require('./utils/showIf')
+const dropdown = require('./utils/dropdown')
+const checkbox = require('./utils/checkbox')
+const findOrCreate = require('./utils/findOrCreate')
 
 /* TODO
-- show object aggregate details ("knowledge score") at top
-  - total number of copies and links regardless of perms
-- type dropdown UI
-- type dropdown data
-- type dropdown filter functionality
+- remove dupes in the object results
+- close dropdown on escape key (in document focus)
+- allow multiple dropdowns open, and close them all on document click
+- filter type dropdown functionality
 - owner dropdown UI and data
 - owner dropdown filter functionality
-- public and private UI
 - public and private filter functionality
-- ++ how to address pagination and expansion of results via arango
+- show object aggregate details ("knowledge score") at top
+  - total number of copies and links regardless of perms
 - basic browser compat testing
 extras
 - sort nested related tables by column
@@ -92,14 +96,18 @@ function newSearch (state, actions, upa) {
   fetchLinkedObjs([state.upa], window._env.authToken)
     .then(results => {
       console.log('linked results', results)
-      actions.update({ links: results, loadingLinks: false })
+      // Get an object of type names for filtering these results
+      const types = getTypeArray(results.links)
+      actions.update({ links: results, linkTypes: types, loadingLinks: false })
     })
     .catch(err => actions.update({ error: String(err), loadingLinks: false }))
   // Fetch all copies of this object, either upstream or downstream
   fetchCopies(state.upa)
     .then(results => {
       console.log('copy results', results)
-      actions.update({ copies: results, loadingCopies: false })
+      // Get an object of type names for filtering these results
+      const types = getTypeArray(results.copies)
+      actions.update({ copies: results, copyTypes: types, loadingCopies: false })
     })
     .catch(err => actions.update({ error: String(err), loadingCopies: false }))
   // Do an assembly homology search on the object, then fetch all linked objects for each search result
@@ -164,10 +172,11 @@ function objHrefs (obj) {
 
 // Top-level view function
 function view (state, actions) {
+  window.state = state // for debugging
   const formElem = showIf(window.location.search === '?form', () => form(state, actions))
   // No results found for this object -- show a simple message
   if (!state.loadingCopies && !state.loadingLinks && !state.links && !state.copies) {
-    return h('div', {class: 'container p2'}, [
+    return h('div', {class: 'container p2 dropdown'}, [
       formElem,
       h('p', {}, 'No results found.')
     ])
@@ -274,16 +283,6 @@ function objInfo (state, actions) {
 }
 */
 
-// A bit more readable ternary conditional for use in views
-// Display the vnode if the boolean is truthy
-// Can pass a plain vnode or a function that returns a vnode
-function showIf (bool, vnode) {
-  if (bool) {
-    return typeof vnode === 'function' ? vnode() : vnode
-  }
-  return ''
-}
-
 // Section of linked objects -- "Linked data"
 function linkedObjsSection (state, actions) {
   if (state.loadingLinks) {
@@ -299,7 +298,11 @@ function linkedObjsSection (state, actions) {
   const links = state.links.links
   return h('div', {}, [
     header('Linked Data', links.length + ' total'),
-    filterTools(),
+    filterTools({
+      list: links,
+      types: state.linkTypes,
+      listName: 'links'
+    }, state, actions),
     h('div', {}, links.map(link => {
       // Subtitle text under the header for each link result
       const subText = [typeName(link.ws_type), link.owner]
@@ -323,7 +326,11 @@ function copyObjsSection (state, actions) {
   // const sublinks = state.copies.sublinks
   return h('div', {class: 'clearfix mt2'}, [
     header('Copies', copies.length + ' total'),
-    filterTools(),
+    filterTools({
+      list: copies,
+      types: state.copyTypes,
+      listName: 'copies'
+    }, state, actions),
     h('div', {}, copies.map(copy => {
       // Subtitle text under the header for each link result
       const subText = [typeName(copy.ws_type), copy.owner]
@@ -373,7 +380,7 @@ function dataSection (entry, subText, state, actions) {
   const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 3).join('')
   return h('div', {}, [
     h('div', {
-      class: 'h3-5 mt1 clearfix relative result-row caret-parent',
+      class: 'h3-5 mt1 clearfix relative result-row hover-parent',
       style: {'whiteSpace': 'nowrap'},
       onclick: ev => {
         if (entry._key) actions.expandEntry(entry)
@@ -381,10 +388,13 @@ function dataSection (entry, subText, state, actions) {
     }, [
       showIf(entry.expanded, () => h('span', { style: { background: iconColor }, class: 'circle-line' })),
       h('span', {
-        class: 'mr1 circle inline-block',
+        class: `mr1 circle inline-block ${entry.expanded ? 'hover-caret-up' : 'hover-caret-down'}`,
         style: { background: iconColor }
-      }, [ iconInitial ]),
-      h('h4', {class: 'inline-block m0 p0 bold'}, [
+      }, [
+        h('span', { class: 'hover-hide' }, [iconInitial]),
+        h('span', { class: 'hover-arrow hover-inline-block' }, entry.expanded ? '⭡' : '⭣')
+      ]),
+      h('h4', { class: 'm0 p0 bold', style: { paddingLeft: '32px' } }, [
         entryName,
         showIf(!entry.expanded, () => h('span', { class: 'caret-up' })),
         showIf(entry.expanded, () => h('span', { class: 'caret-down' }))
@@ -487,20 +497,48 @@ function graphLine () {
 */
 
 // Filter results
-function filterTools () {
+// `listName` should be one of 'links', 'copies', or 'similar'
+// `types` should be a list of types to filter on (eg. state.linkTypes)
+// `list` should be a list of objects (eg. state.links.links)
+function filterTools ({types, list, listName}, state, actions) {
+  const dropdownID = 'dropdown-type-' + listName
+  findOrCreate(dropdownID, { open: false }, state, actions)
+  const typeFilter = dropdown({
+    id: dropdownID,
+    text: 'Type',
+    content: (types || []).map(type => {
+      return h('div', {class: 'pt1'}, [
+        checkbox({
+          id: 'checkbox-' + type + '-' + listName,
+          text: type,
+          name: 'type',
+          checked: true,
+          onchange: console.log.bind(console)
+        }, state, actions)
+      ])
+    })
+  }, state, actions)
   return h('div', { class: 'pb1' }, [
-    'Filter by ',
-    h('button', {class: 'btn mx2'}, 'Type'),
-    h('button', {class: 'btn mr2'}, 'Owner'),
-    h('div', {class: 'chkbx ml2'}, [
-      h('div', {class: 'checkmark'}),
-      h('input', {type: 'checkbox', id: 'chkbox1'}),
-      h('label', {for: 'chkbox1'}, 'Public')
+    h('span', {
+      class: 'inline-block mr1 align-middle'
+    }, 'Filter by '),
+    typeFilter,
+    // h('button', {class: 'btn mr2'}, 'Owner'),
+    h('span', { class: 'inline-block ml1 align-middle' }, [
+      checkbox({
+        id: 'checkbox-public-' + listName,
+        text: 'Public',
+        name: 'public',
+        checked: true
+      }, state, actions)
     ]),
-    h('div', {class: 'chkbx ml2'}, [
-      h('div', {class: 'checkmark'}),
-      h('input', {type: 'checkbox', id: 'chkbox2'}),
-      h('label', {for: 'chkbox2'}, 'Private')
+    h('span', { class: 'inline-block ml2 align-middle' }, [
+      checkbox({
+        id: 'checkbox-private-' + listName,
+        text: 'Private',
+        name: 'private',
+        checked: true
+      }, state, actions)
     ])
   ])
 }
@@ -605,6 +643,14 @@ window._messageHandlers = {
   setAuthToken: function (params) {
     window._env.authToken = params.token
   }
+}
+
+// From a collection of objects, get an array of readable type names
+function getTypeArray (objects) {
+  return Object.keys(objects.reduce((obj, link) => {
+    obj[typeName(link.ws_type)] = true
+    return obj
+  }, {}))
 }
 
 // TODO remove this -- testing purposes only
