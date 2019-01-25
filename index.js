@@ -1,12 +1,11 @@
 const { h, app } = require('hyperapp')
-const { fetchLinkedObjs, fetchCopies, fetchHomologs } = require('./utils/apiClients')
+const { fetchLinkedObjs, fetchCopies } = require('./utils/apiClients')
 const serialize = require('form-serialize')
 
 const icons = require('./utils/icons')
 const showIf = require('./utils/showIf')
-const dropdown = require('./utils/dropdown')
 const checkbox = require('./utils/checkbox')
-const findOrCreate = require('./utils/findOrCreate')
+const filterDropdown = require('./utils/filterDropdown')
 
 /* TODO
 - remove dupes in the object results
@@ -23,7 +22,7 @@ extras
 - sort nested related tables by column
 */
 
-const state = { navHistory: [], obj: {} }
+const state = { obj: {} }
 
 const actions = {
   // Click an object to expand its link results
@@ -49,18 +48,23 @@ const actions = {
     }
     actions.update({})
   },
-  followLink: ({ name, upa }) => (state, actions) => {
-    const navHistory = state.navHistory || []
-    actions.setObject({ name, upa })
-    navHistory.push({ name: name, upa: state.upa })
-    actions.update({ navHistory })
-  },
   setObject: ({ name, upa }) => (state, actions) => {
+    upa = upa.replace(/\//g, ':') // replace '/' with ':' (arangodb stores colon as the delimiter)
     const obj = { obj_name: name, upa }
     actions.update({ obj, upa })
     newSearch(state, actions, upa)
   },
-  update: state => () => state
+  update: state => () => state,
+  updatePath: (path, data) => state => {
+    // Update data at a nested path in state. Items in the path are object keys or array indexes.
+    // For example, given the state {x: {y: [0, 1, 2]}}, you could call updatePath(["x", "y", 1], 99)
+    //   which would result in the state {x: {y: [0, 99, 2]}}
+    path.slice(0, path.length - 1).forEach(key => {
+      state = state[key]
+    })
+    state[path.length - 1] = data
+    return {}
+  }
 }
 
 // Perform a full fetch on an object
@@ -92,6 +96,10 @@ function newSearch (state, actions, upa) {
       return fetchLinkedObjs(state.upa, window._env.authToken)
     })
     */
+  function logError (err) {
+    console.log(err)
+    console.trace()
+  }
   // Fetch all objects linked by reference or by provenance
   fetchLinkedObjs([state.upa], window._env.authToken)
     .then(results => {
@@ -100,17 +108,28 @@ function newSearch (state, actions, upa) {
       const types = getTypeArray(results.links)
       actions.update({ links: results, linkTypes: types, loadingLinks: false })
     })
-    .catch(err => actions.update({ error: String(err), loadingLinks: false }))
+    .catch(err => {
+      actions.update({ error: String(err), loadingLinks: false })
+      logError(err)
+    })
   // Fetch all copies of this object, either upstream or downstream
   fetchCopies(state.upa)
     .then(results => {
       console.log('copy results', results)
       // Get an object of type names for filtering these results
-      const types = getTypeArray(results.copies)
-      actions.update({ copies: results, copyTypes: types, loadingCopies: false })
+      if (results) {
+        const types = getTypeArray(results.copies)
+        actions.update({ copies: results, copyTypes: types })
+      }
+      actions.update({ loadingCopies: false })
     })
-    .catch(err => actions.update({ error: String(err), loadingCopies: false }))
+    .catch(err => {
+      actions.update({ error: String(err), loadingCopies: false })
+      logError(err)
+    })
   // Do an assembly homology search on the object, then fetch all linked objects for each search result
+  /*
+  TODO get working again
   actions.update({ searching: true })
   fetchHomologs(state.upa)
     .then(results => {
@@ -127,7 +146,11 @@ function newSearch (state, actions, upa) {
       console.log('homology link results', results)
       actions.update({ similarLinked: results, searching: false })
     })
-    .catch(err => actions.update({ error: String(err), searching: false }))
+    .catch(err => {
+      actions.update({ error: String(err), searching: false })
+      logError(err)
+    })
+  */
 }
 
 /*
@@ -218,7 +241,6 @@ function form (state, actions) {
       h('label', {class: 'block mb2 bold'}, 'Auth token'),
       h('input', {
         class: 'input p1',
-        required: true,
         type: 'password',
         name: 'token',
         value: window._env.authToken
@@ -320,7 +342,7 @@ function copyObjsSection (state, actions) {
     ])
   }
   if (!state.copies || !state.copies.copies.length) {
-    return h('p', {class: 'muted'}, 'There are no copies of this object.')
+    return h('p', {class: 'muted no-results'}, 'There are no copies of this object.')
   }
   const copies = state.copies.copies
   // const sublinks = state.copies.sublinks
@@ -372,6 +394,7 @@ function similarData (state, actions) {
 // Section of parent data, with circle icon
 // You can pass in some subtext (array of strings), which goes below the main title
 function dataSection (entry, subText, state, actions) {
+  if (entry.hidden) return ''
   const hrefs = objHrefs(entry)
   // sublinks = sublinks.filter(l => l.parent_id === entry._id)
   const entryName = entry.obj_name
@@ -496,28 +519,52 @@ function graphLine () {
 }
 */
 
+// Get the value in an obj at the given path
+// Eg. given the object {x: {y: ['a','b','c']}} and the path ["x", "y", 2]
+//   This will return 'c'
+function getPath (path, obj) {
+  return path.reduce((obj, key) => {
+    if (!(key in obj)) {
+
+    }
+    obj = obj[key]
+    return obj
+  }, state)
+}
+
+function scope (state, actions, path, defaults) {
+  function update (newState) {
+    actions.updatePath(path, newState)
+  }
+  const nestedState = getPath(path, state)
+  return { update, state: nestedState }
+}
+
+function component ({ scope, defaults, state, actions }) {
+}
+
 // Filter results
 // `listName` should be one of 'links', 'copies', or 'similar'
 // `types` should be a list of types to filter on (eg. state.linkTypes)
 // `list` should be a list of objects (eg. state.links.links)
 function filterTools ({types, list, listName}, state, actions) {
-  const dropdownID = 'dropdown-type-' + listName
-  findOrCreate(dropdownID, { open: false }, state, actions)
-  const typeFilter = dropdown({
-    id: dropdownID,
+  const typeFilter = filterDropdown({
+    id: 'filter-dropdown-' + listName,
     text: 'Type',
-    content: (types || []).map(type => {
-      return h('div', {class: 'pt1'}, [
-        checkbox({
-          id: 'checkbox-' + type + '-' + listName,
-          text: type,
-          name: 'type',
-          checked: true,
-          onchange: console.log.bind(console)
-        }, state, actions)
-      ])
-    })
+    onchange: console.log.bind(console),
+    options: types || []
   }, state, actions)
+  // Set default state for some of the elements in here
+  const privCheckboxPath = [listName, 'filter-checkbox-private']
+  const pubCheckboxPath = [listName, 'filter-checkbox-public']
+  const privCheckbox = scope({
+    scope: [listName, 'checkbox-private'],
+    state,
+    actions,
+    defaults: { text: 'Private', name: 'Private', checked: true }
+  })
+  setDefault(privCheckboxPath, checkbox.create)
+  setDefault(pubCheckboxPath, checkbox.create)
   return h('div', { class: 'pb1' }, [
     h('span', {
       class: 'inline-block mr1 align-middle'
@@ -525,14 +572,16 @@ function filterTools ({types, list, listName}, state, actions) {
     typeFilter,
     // h('button', {class: 'btn mr2'}, 'Owner'),
     h('span', { class: 'inline-block ml1 align-middle' }, [
-      checkbox({
-        id: 'checkbox-public-' + listName,
-        text: 'Public',
-        name: 'public',
-        checked: true
-      }, state, actions)
+      checkbox.view(scope(state, 'public-checkbox-' + listName), actions)
     ]),
     h('span', { class: 'inline-block ml2 align-middle' }, [
+      checkbox({
+        scope: [listName, 'checkbox-private'],
+        defaults: { text: 'Private', name: 'Private', checked: true },
+        state,
+        actions,
+        onchange
+      })
       checkbox({
         id: 'checkbox-private-' + listName,
         text: 'Private',
@@ -603,6 +652,7 @@ const appActions = app(state, actions, view, container)
 
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false)
+// Default app config -- overridden by postMessage handlers further below
 window._env = {
   kbaseEndpoint: 'https://ci.kbase.us',
   sketchURL: 'https://ci.kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service',
@@ -629,7 +679,7 @@ window._messageHandlers = {
   setUPA: function (params) {
     const upa = params.upa
     const name = params.name || ('Object ' + upa)
-    appActions.followLink({ name, upa })
+    appActions.setObject({ name, upa })
   },
   setKBaseEndpoint: function (params) {
     window._env.kbaseEndpoint = params.url.replace(/\/$/, '')
@@ -654,4 +704,5 @@ function getTypeArray (objects) {
 }
 
 // TODO remove this -- testing purposes only
-window._messageHandlers.setUPA({ upa: '15/8/1' })
+window._messageHandlers.setAuthToken({ token: 'ITI7Y46RC6MSUS2ELLTQCBVASIMAXT6O' })
+window._messageHandlers.setUPA({ upa: '15:8:1' })

@@ -1,25 +1,31 @@
 const { h } = require('hyperapp')
-const findOrCreate = require('./findOrCreate')
 
-module.exports = checkbox
+module.exports = { view, create }
 
-// Simple styled checkbox component
-function checkbox ({ id, text, name, checked, onchange }, state, actions) {
-  findOrCreate(id, { checked }, state, actions)
-  if (!(id in state)) return
-  const thisState = state[id]
+// Checkbox component
+
+function view ({ state, update }, options = {}) {
+  // Need a random ID for the input and label connection
+  const id = String(Math.random() * 1000000)
   return h('span', {class: 'checkbox inline-block'}, [
     h('input', {
       type: 'checkbox',
       id,
-      name,
+      name: state.name,
       onchange: ev => {
-        const newState = Object.assign(thisState, { checked: !thisState.checked })
-        actions.update({ [id]: newState })
-        if (onchange) onchange(ev, newState)
+        update({ checked: !state.checked })
+        if (options.onchange) options.onchange(ev, !state.checked)
       },
-      checked: thisState.checked
+      checked: state.checked
     }),
-    h('label', { for: id, class: 'inline-block' }, text)
+    h('label', { for: id, class: 'inline-block' }, state.text)
   ])
+}
+
+function create (options = {}) {
+  return Object.assign({
+    text: '',
+    name: '',
+    checked: false
+  }, options)
 }
