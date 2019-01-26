@@ -19,7 +19,7 @@ function Component (options) {
       // Turn the function into a method that re-renders the view
       component[key] = function (val) {
         options[key].apply(null, [component].concat(Array.from(arguments)))
-        render(component, options.view)
+        component._render(component, options.view)
         return component
       }
     } else {
@@ -28,17 +28,17 @@ function Component (options) {
   }
   component.view = function () {
     component._viewArgs = Array.from(arguments)
-    return render(component, options.view)
+    return component._render(component, options.view)
   }
   component._vnode = patch(document.createElement('div'), options.view(component))
-  return component
-}
-
-// Render the component's vnode using efficient sub-tree patching
-function render (component, view) {
-  const newVnode = patch(component._vnode, view([component].concat(Array.from(component._viewArgs))))
-  for (let prop in newVnode) {
-    component._vnode[prop] = newVnode[prop]
+  component._render = function () {
+    const viewResult = options.view.apply(null, [component].concat(Array.from(component._viewArgs)))
+    const newVnode = patch(component._vnode, viewResult)
+    // Do some efficient subtree patching
+    for (let prop in newVnode) {
+      component._vnode[prop] = newVnode[prop]
+    }
+    return component._vnode
   }
-  return component._vnode
+  return component
 }
