@@ -3,7 +3,7 @@ module.exports = { fetchLinkedObjs, fetchCopies, fetchHomologs, fetchObj }
 // Fetch all linked and sub-linked data from an upa
 function fetchLinkedObjs (upas, token) {
   upas = upas.map(upa => upa.replace(/\//g, ':'))
-  const payload = { obj_keys: upas, link_limit: 50 }
+  const payload = { obj_keys: upas, link_limit: 10 }
   return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' })
 }
 
