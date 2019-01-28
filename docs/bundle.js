@@ -54,11 +54,10 @@ var actions = {
     };
   },
   setObject: function (_ref) {
-    var name = _ref.name,
-        upa = _ref.upa;
+    var upa = _ref.upa;
     return function (state, actions) {
       upa = upa.replace(/\//g, ':'); // replace '/' with ':' (arangodb stores colon as the delimiter)
-      var obj = { obj_name: name, upa: upa };
+      var obj = { obj_name: 'Object ' + upa, upa: upa };
       actions.update({ obj: obj, upa: upa });
       newSearch(state, actions, upa);
     };
@@ -170,12 +169,12 @@ function typeName(typeStr) {
 
 // Generate KBase url links for an object
 function objHrefs(obj) {
-  var rootUrl = window._env.kbaseRootUrl;
-  var dataview = rootUrl + '/#dataview/';
-  var typeUrl = rootUrl + '/#spec/type/';
+  var rootURL = window._env.rootURL;
+  var dataview = rootURL + '/#dataview/';
+  var typeURL = rootURL + '/#spec/type/';
   var hrefs = {};
   if (obj.ws_type) {
-    hrefs.type = typeUrl + obj.ws_type;
+    hrefs.type = typeURL + obj.ws_type;
   }
   if (obj.upa) {
     hrefs.obj = dataview + obj.upa;
@@ -183,10 +182,10 @@ function objHrefs(obj) {
     hrefs.obj = dataview + obj._key.replace(/:/g, '/');
   }
   if (obj.workspace_id) {
-    hrefs.narrative = rootUrl + '/narrative/' + obj.workspace_id;
+    hrefs.narrative = rootURL + '/narrative/' + obj.workspace_id;
   }
   if (obj.owner) {
-    hrefs.owner = rootUrl + '/#people/' + obj.owner;
+    hrefs.owner = rootURL + '/#people/' + obj.owner;
   }
   return hrefs;
 }
@@ -421,20 +420,16 @@ function subDataSection(subentry, entry, state, actions) {
   return h('tr', { class: 'semi-muted' }, [h('td', {}, [h('a', { href: hrefs.obj, target: '_blank' }, subentry.obj_name)]), h('td', {}, [typeName(subentry.ws_type)]), h('td', {}, [h('a', { href: hrefs.narrative, target: '_blank' }, subentry.narr_name)]), h('td', {}, [h('a', { href: hrefs.owner, target: '_blank' }, subentry.owner)])]);
 }
 
+/*
 // Filter results
 // `listName` should be one of 'links', 'copies', or 'similar'
 // `types` should be a list of types to filter on (eg. state.linkTypes)
 // `list` should be a list of objects (eg. state.links.links)
-function filterTools(_ref2, state, actions) {
-  var types = _ref2.types,
-      list = _ref2.list,
-      listName = _ref2.listName;
-
-  var typeFilter = h('button', {
+function filterTools ({types, list, listName}, state, actions) {
+  const typeFilter = h('button', {
     class: 'btn'
-  }, 'Type');
-  var ownerFilter = h('button', { class: 'ml1 btn' }, 'Owner');
-  /*
+  }, 'Type')
+  const ownerFilter = h('button', { class: 'ml1 btn' }, 'Owner')
   const typeFilter = filterDropdown({
     id: 'filter-dropdown-' + listName,
     text: 'Type',
@@ -443,7 +438,6 @@ function filterTools(_ref2, state, actions) {
     },
     options: types || []
   }, state, actions)
-  */
   // Set default state for some of the elements in here
   // const privCheckboxPath = [listName, 'filter-checkbox-private']
   // const pubCheckboxPath = [listName, 'filter-checkbox-public']
@@ -455,33 +449,41 @@ function filterTools(_ref2, state, actions) {
   // })
   // setDefault(privCheckboxPath, checkbox.create)
   // setDefault(pubCheckboxPath, checkbox.create)
-  return h('div', { class: 'pb1' }, [h('span', {
-    class: 'inline-block mr1 align-middle'
-  }, 'Filter by '), typeFilter, ownerFilter,
-  // h('button', {class: 'btn mr2'}, 'Owner'),
-  h('span', { class: 'inline-block ml1 align-middle' }, [h('input', { type: 'checkbox' }), h('span', {}, 'Public')
-  // checkbox.view(scope(state, 'public-checkbox-' + listName), actions)
-  ]), h('span', { class: 'inline-block ml2 align-middle' }, [h('input', { type: 'checkbox' }), h('span', {}, 'Private')
-  /*
-  filterDropdown({
-    path: [listName, 'filter-type']
-  })
-  checkbox({
-    path: [listName, 'checkbox-private'],
-    defaults: { text: 'Private', name: 'Private', checked: true },
-    state,
-    actions,
-    onchange
-  })
-  checkbox({
-    id: 'checkbox-private-' + listName,
-    text: 'Private',
-    name: 'private',
-    checked: true
-  }, state, actions)
-  */
-  ])]);
+  return h('div', { class: 'pb1' }, [
+    h('span', {
+      class: 'inline-block mr1 align-middle'
+    }, 'Filter by '),
+    typeFilter,
+    ownerFilter,
+    // h('button', {class: 'btn mr2'}, 'Owner'),
+    h('span', { class: 'inline-block ml1 align-middle' }, [
+      h('input', { type: 'checkbox' }),
+      h('span', {}, 'Public')
+      // checkbox.view(scope(state, 'public-checkbox-' + listName), actions)
+    ]),
+    h('span', { class: 'inline-block ml2 align-middle' }, [
+      h('input', { type: 'checkbox' }),
+      h('span', {}, 'Private')
+      filterDropdown({
+        path: [listName, 'filter-type']
+      })
+      checkbox({
+        path: [listName, 'checkbox-private'],
+        defaults: { text: 'Private', name: 'Private', checked: true },
+        state,
+        actions,
+        onchange
+      })
+      checkbox({
+        id: 'checkbox-private-' + listName,
+        text: 'Private',
+        name: 'private',
+        checked: true
+      }, state, actions)
+    ])
+  ])
 }
+*/
 
 // Section header
 function header(text, rightText) {
@@ -560,25 +562,14 @@ function receiveMessage(ev) {
 }
 
 window._messageHandlers = {
-  setUPA: function (params) {
-    var upa = params.upa;
-    var name = params.name || 'Object ' + upa;
-    appActions.setObject({ name: name, upa: upa });
-  },
-  setKBaseEndpoint: function (params) {
-    window._env.kbaseEndpoint = params.url.replace(/\/$/, '');
-  },
-  setRelEngURL: function (params) {
-    window._env.relEngURL = params.url.replace(/\/$/, '');
-  },
-  setSketchURL: function (params) {
-    window._env.sketchURL = params.url.replace(/\/$/, '');
-  },
-  setAuthToken: function (params) {
-    window._env.authToken = params.token;
-  },
-  setRootUrl: function (params) {
-    window._env.kbaseRootUrl = params.url.replace(/\/$/, '');
+  setConfig: function (_ref2) {
+    var config = _ref2.config;
+
+    if (typeof config !== 'object') return;
+    window._env = Object.assign(window._env, config);
+    if (config.upa) {
+      appActions.setObject({ upa: config.upa });
+    }
   }
 
   // From a collection of objects, get an array of readable type names
@@ -591,11 +582,17 @@ window._messageHandlers = {
 
 // Token below is revoked
 // window._messageHandlers.setAuthToken({ token: 'LPIX46RNMMHGUGM2KHNAS6JSLQBYYVH4' })
-// window._messageHandlers.setRootUrl({ url: 'https://narrative-dev.kbase.us' })
-// window._messageHandlers.setAuthToken({ token: 'AASKV2ZWFVDU375FV6Y6NHF2QUYA6S76' })
-// window._messageHandlers.setKBaseEndpoint({ url: 'https://kbase.us/services' })
-// window._messageHandlers.setRelEngURL({ url: 'https://kbase.us/services/relation_engine_api' })
-// window._messageHandlers.setUPA({ upa: '39686/45/1' })
+/*
+window._messageHandlers.setConfig({
+  config: {
+    rootURL: 'https://narrative-dev.kbase.us',
+    authToken: '',
+    kbaseEndpoint: 'https://kbase.us/services',
+    relEngURL: 'https://kbase.us/services/relation_engine_api',
+    upa: '39686/45/1'
+  }
+})
+*/
 },{"./utils/apiClients":4,"./utils/icons":5,"./utils/showIf":6,"form-serialize":2,"hyperapp":3}],2:[function(require,module,exports){
 // get successful control from form and assemble into object
 // http://www.w3.org/TR/html401/interact/forms.html#h-17.13.2
