@@ -45,9 +45,9 @@ const actions = {
     }
     actions.update({})
   },
-  setObject: ({ name, upa }) => (state, actions) => {
+  setObject: ({ upa }) => (state, actions) => {
     upa = upa.replace(/\//g, ':') // replace '/' with ':' (arangodb stores colon as the delimiter)
-    const obj = { obj_name: name, upa }
+    const obj = { obj_name: 'Object ' + upa, upa }
     actions.update({ obj, upa })
     newSearch(state, actions, upa)
   },
@@ -159,12 +159,12 @@ function typeName (typeStr) {
 
 // Generate KBase url links for an object
 function objHrefs (obj) {
-  const rootUrl = window._env.kbaseRootUrl
-  const dataview = rootUrl + '/#dataview/'
-  const typeUrl = rootUrl + '/#spec/type/'
+  const rootURL = window._env.rootURL
+  const dataview = rootURL + '/#dataview/'
+  const typeURL = rootURL + '/#spec/type/'
   const hrefs = {}
   if (obj.ws_type) {
-    hrefs.type = typeUrl + obj.ws_type
+    hrefs.type = typeURL + obj.ws_type
   }
   if (obj.upa) {
     hrefs.obj = dataview + obj.upa
@@ -172,10 +172,10 @@ function objHrefs (obj) {
     hrefs.obj = dataview + obj._key.replace(/:/g, '/')
   }
   if (obj.workspace_id) {
-    hrefs.narrative = rootUrl + '/narrative/' + obj.workspace_id
+    hrefs.narrative = rootURL + '/narrative/' + obj.workspace_id
   }
   if (obj.owner) {
-    hrefs.owner = rootUrl + '/#people/' + obj.owner
+    hrefs.owner = rootURL + '/#people/' + obj.owner
   }
   return hrefs
 }
@@ -493,6 +493,7 @@ function subDataSection (subentry, entry, state, actions) {
   ])
 }
 
+/*
 // Filter results
 // `listName` should be one of 'links', 'copies', or 'similar'
 // `types` should be a list of types to filter on (eg. state.linkTypes)
@@ -502,7 +503,6 @@ function filterTools ({types, list, listName}, state, actions) {
     class: 'btn'
   }, 'Type')
   const ownerFilter = h('button', { class: 'ml1 btn' }, 'Owner')
-  /*
   const typeFilter = filterDropdown({
     id: 'filter-dropdown-' + listName,
     text: 'Type',
@@ -511,7 +511,6 @@ function filterTools ({types, list, listName}, state, actions) {
     },
     options: types || []
   }, state, actions)
-  */
   // Set default state for some of the elements in here
   // const privCheckboxPath = [listName, 'filter-checkbox-private']
   // const pubCheckboxPath = [listName, 'filter-checkbox-public']
@@ -538,7 +537,6 @@ function filterTools ({types, list, listName}, state, actions) {
     h('span', { class: 'inline-block ml2 align-middle' }, [
       h('input', { type: 'checkbox' }),
       h('span', {}, 'Private')
-      /*
       filterDropdown({
         path: [listName, 'filter-type']
       })
@@ -555,10 +553,10 @@ function filterTools ({types, list, listName}, state, actions) {
         name: 'private',
         checked: true
       }, state, actions)
-      */
     ])
   ])
 }
+*/
 
 // Section header
 function header (text, rightText) {
@@ -645,25 +643,12 @@ function receiveMessage (ev) {
 }
 
 window._messageHandlers = {
-  setUPA: function (params) {
-    const upa = params.upa
-    const name = params.name || ('Object ' + upa)
-    appActions.setObject({ name, upa })
-  },
-  setKBaseEndpoint: function (params) {
-    window._env.kbaseEndpoint = params.url.replace(/\/$/, '')
-  },
-  setRelEngURL: function (params) {
-    window._env.relEngURL = params.url.replace(/\/$/, '')
-  },
-  setSketchURL: function (params) {
-    window._env.sketchURL = params.url.replace(/\/$/, '')
-  },
-  setAuthToken: function (params) {
-    window._env.authToken = params.token
-  },
-  setRootUrl: function (params) {
-    window._env.kbaseRootUrl = params.url.replace(/\/$/, '')
+  setConfig: function ({ config }) {
+    if (typeof config !== 'object') return
+    window._env = Object.assign(window._env, config)
+    if (config.upa) {
+      appActions.setObject({ upa: config.upa })
+    }
   }
 }
 
@@ -677,8 +662,14 @@ function getTypeArray (objects) {
 
 // Token below is revoked
 // window._messageHandlers.setAuthToken({ token: 'LPIX46RNMMHGUGM2KHNAS6JSLQBYYVH4' })
-// window._messageHandlers.setRootUrl({ url: 'https://narrative-dev.kbase.us' })
-// window._messageHandlers.setAuthToken({ token: 'AASKV2ZWFVDU375FV6Y6NHF2QUYA6S76' })
-// window._messageHandlers.setKBaseEndpoint({ url: 'https://kbase.us/services' })
-// window._messageHandlers.setRelEngURL({ url: 'https://kbase.us/services/relation_engine_api' })
-// window._messageHandlers.setUPA({ upa: '39686/45/1' })
+/*
+window._messageHandlers.setConfig({
+  config: {
+    rootURL: 'https://narrative-dev.kbase.us',
+    authToken: '',
+    kbaseEndpoint: 'https://kbase.us/services',
+    relEngURL: 'https://kbase.us/services/relation_engine_api',
+    upa: '39686/45/1'
+  }
+})
+*/
