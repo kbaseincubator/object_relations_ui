@@ -8,14 +8,11 @@ const showIf = require('./utils/showIf')
 // const filterDropdown = require('./utils/filterDropdown')
 
 /* TODO
-- remove dupes in the object results
-- close dropdown on escape key (in document focus)
-- allow multiple dropdowns open, and close them all on document click
-- filter type dropdown functionality
-- owner dropdown UI and data
-- owner dropdown filter functionality
-- public and private filter functionality
-- show object aggregate details ("knowledge score") at top
+- convert to components
+- filter type dropdown ++
+- owner dropdown ++
+- public and private filters ++
+- ++ object aggregate details ("knowledge score") ++
   - total number of copies and links regardless of perms
 - basic browser compat testing
 extras
@@ -678,10 +675,10 @@ function getTypeArray (objects) {
   }, {}))
 }
 
-// TODO remove this -- testing purposes only
+// Token below is revoked
 // window._messageHandlers.setAuthToken({ token: 'LPIX46RNMMHGUGM2KHNAS6JSLQBYYVH4' })
-window._messageHandlers.setRootUrl({ url: 'https://narrative-dev.kbase.us' })
-window._messageHandlers.setAuthToken({ token: 'AASKV2ZWFVDU375FV6Y6NHF2QUYA6S76' })
-window._messageHandlers.setKBaseEndpoint({ url: 'https://kbase.us/services' })
-window._messageHandlers.setRelEngURL({ url: 'https://kbase.us/services/relation_engine_api' })
-window._messageHandlers.setUPA({ upa: '39686/45/1' })
+// window._messageHandlers.setRootUrl({ url: 'https://narrative-dev.kbase.us' })
+// window._messageHandlers.setAuthToken({ token: 'AASKV2ZWFVDU375FV6Y6NHF2QUYA6S76' })
+// window._messageHandlers.setKBaseEndpoint({ url: 'https://kbase.us/services' })
+// window._messageHandlers.setRelEngURL({ url: 'https://kbase.us/services/relation_engine_api' })
+// window._messageHandlers.setUPA({ upa: '39686/45/1' })
