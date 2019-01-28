@@ -12,7 +12,7 @@ const colorMapping = {
   FBA: '#673AB7',
   FBAModel: '#673AB7',
   FeatureClusters: '#AEEA00',
-  FeatureSet: '#AEEA00',
+  FeatureSet: 'rgb(117, 152, 14)',
   FunctionalMatrix: '#000000',
   Genome: '#3F51B5',
   GenomeAnnotation: '#920D58',

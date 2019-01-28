@@ -1,11 +1,11 @@
 const { h, app } = require('hyperapp')
-const { fetchLinkedObjs, fetchCopies } = require('./utils/apiClients')
+const { fetchLinkedObjs, fetchCopies, fetchHomologs } = require('./utils/apiClients')
 const serialize = require('form-serialize')
 
 const icons = require('./utils/icons')
 const showIf = require('./utils/showIf')
-const checkbox = require('./utils/checkbox')
-const filterDropdown = require('./utils/filterDropdown')
+// const checkbox = require('./utils/checkbox')
+// const filterDropdown = require('./utils/filterDropdown')
 
 /* TODO
 - remove dupes in the object results
@@ -54,17 +54,7 @@ const actions = {
     actions.update({ obj, upa })
     newSearch(state, actions, upa)
   },
-  update: state => () => state,
-  updatePath: (path, data) => state => {
-    // Update data at a nested path in state. Items in the path are object keys or array indexes.
-    // For example, given the state {x: {y: [0, 1, 2]}}, you could call updatePath(["x", "y", 1], 99)
-    //   which would result in the state {x: {y: [0, 99, 2]}}
-    path.slice(0, path.length - 1).forEach(key => {
-      state = state[key]
-    })
-    state[path.length - 1] = data
-    return {}
-  }
+  update: state => () => state
 }
 
 // Perform a full fetch on an object
@@ -105,8 +95,11 @@ function newSearch (state, actions, upa) {
     .then(results => {
       console.log('linked results', results)
       // Get an object of type names for filtering these results
-      const types = getTypeArray(results.links)
-      actions.update({ links: results, linkTypes: types, loadingLinks: false })
+      if (results) {
+        const types = getTypeArray(results.links)
+        actions.update({ links: results, linkTypes: types })
+      }
+      actions.update({ loadingLinks: false })
     })
     .catch(err => {
       actions.update({ error: String(err), loadingLinks: false })
@@ -128,8 +121,6 @@ function newSearch (state, actions, upa) {
       logError(err)
     })
   // Do an assembly homology search on the object, then fetch all linked objects for each search result
-  /*
-  TODO get working again
   actions.update({ searching: true })
   fetchHomologs(state.upa)
     .then(results => {
@@ -150,7 +141,6 @@ function newSearch (state, actions, upa) {
       actions.update({ error: String(err), searching: false })
       logError(err)
     })
-  */
 }
 
 /*
@@ -172,9 +162,9 @@ function typeName (typeStr) {
 
 // Generate KBase url links for an object
 function objHrefs (obj) {
-  const url = window._env.kbaseEndpoint
-  const dataview = url + '/#dataview/'
-  const typeUrl = url + '/#spec/type/'
+  const rootUrl = window._env.kbaseRootUrl
+  const dataview = rootUrl + '/#dataview/'
+  const typeUrl = rootUrl + '/#spec/type/'
   const hrefs = {}
   if (obj.ws_type) {
     hrefs.type = typeUrl + obj.ws_type
@@ -185,10 +175,10 @@ function objHrefs (obj) {
     hrefs.obj = dataview + obj._key.replace(/:/g, '/')
   }
   if (obj.workspace_id) {
-    hrefs.narrative = `https://narrative.kbase.us/narrative/ws.${obj.workspace_id}.obj.1`
+    hrefs.narrative = rootUrl + '/narrative/' + obj.workspace_id
   }
   if (obj.owner) {
-    hrefs.owner = url + '/#people/' + obj.owner
+    hrefs.owner = rootUrl + '/#people/' + obj.owner
   }
   return hrefs
 }
@@ -208,7 +198,7 @@ function view (state, actions) {
     formElem,
     showIf(state.error, h('p', { class: 'error' }, state.error)),
     // objInfo(state, actions),
-    h('p', {}, ['Total relationships for this object: ', h('span', { class: 'bold' }, 999)]),
+    h('p', {}, [h('strong', {}, '47'), ' total related objects']),
     linkedObjsSection(state, actions),
     copyObjsSection(state, actions),
     similarData(state, actions)
@@ -320,11 +310,13 @@ function linkedObjsSection (state, actions) {
   const links = state.links.links
   return h('div', {}, [
     header('Linked Data', links.length + ' total'),
+    /*
     filterTools({
       list: links,
       types: state.linkTypes,
       listName: 'links'
     }, state, actions),
+    */
     h('div', {}, links.map(link => {
       // Subtitle text under the header for each link result
       const subText = [typeName(link.ws_type), link.owner]
@@ -348,11 +340,13 @@ function copyObjsSection (state, actions) {
   // const sublinks = state.copies.sublinks
   return h('div', {class: 'clearfix mt2'}, [
     header('Copies', copies.length + ' total'),
+    /*
     filterTools({
       list: copies,
       types: state.copyTypes,
       listName: 'copies'
     }, state, actions),
+    */
     h('div', {}, copies.map(copy => {
       // Subtitle text under the header for each link result
       const subText = [typeName(copy.ws_type), copy.owner]
@@ -502,81 +496,57 @@ function subDataSection (subentry, entry, state, actions) {
   ])
 }
 
-/*
-// Little svg line that represents sub-object links
-function graphLine () {
-  const style = 'stroke: #bbb; stroke-width: 2'
-  const height = 43
-  const width = 22
-  return h('svg', {
-    height: height + 1,
-    width,
-    class: 'inline-block align-top mr1'
-  }, [
-    h('line', {x1: 5, y1: 0, x2: 5, y2: height, style}),
-    h('line', {x1: 4, y1: height, x2: width, y2: height, style})
-  ])
-}
-*/
-
-// Get the value in an obj at the given path
-// Eg. given the object {x: {y: ['a','b','c']}} and the path ["x", "y", 2]
-//   This will return 'c'
-function getPath (path, obj) {
-  return path.reduce((obj, key) => {
-    if (!(key in obj)) {
-
-    }
-    obj = obj[key]
-    return obj
-  }, state)
-}
-
-function scope (state, actions, path, defaults) {
-  function update (newState) {
-    actions.updatePath(path, newState)
-  }
-  const nestedState = getPath(path, state)
-  return { update, state: nestedState }
-}
-
-function component ({ scope, defaults, state, actions }) {
-}
-
 // Filter results
 // `listName` should be one of 'links', 'copies', or 'similar'
 // `types` should be a list of types to filter on (eg. state.linkTypes)
 // `list` should be a list of objects (eg. state.links.links)
 function filterTools ({types, list, listName}, state, actions) {
+  const typeFilter = h('button', {
+    class: 'btn'
+  }, 'Type')
+  const ownerFilter = h('button', { class: 'ml1 btn' }, 'Owner')
+  /*
   const typeFilter = filterDropdown({
     id: 'filter-dropdown-' + listName,
     text: 'Type',
-    onchange: console.log.bind(console),
+    onchange: (filters) => {
+      actions.applyFilters(filters)
+    },
     options: types || []
   }, state, actions)
+  */
   // Set default state for some of the elements in here
-  const privCheckboxPath = [listName, 'filter-checkbox-private']
-  const pubCheckboxPath = [listName, 'filter-checkbox-public']
-  const privCheckbox = scope({
-    scope: [listName, 'checkbox-private'],
-    state,
-    actions,
-    defaults: { text: 'Private', name: 'Private', checked: true }
-  })
-  setDefault(privCheckboxPath, checkbox.create)
-  setDefault(pubCheckboxPath, checkbox.create)
+  // const privCheckboxPath = [listName, 'filter-checkbox-private']
+  // const pubCheckboxPath = [listName, 'filter-checkbox-public']
+  // const privCheckbox = scope({
+  //   scope: [listName, 'checkbox-private'],
+  //   state,
+  //   actions,
+  //   defaults: { text: 'Private', name: 'Private', checked: true }
+  // })
+  // setDefault(privCheckboxPath, checkbox.create)
+  // setDefault(pubCheckboxPath, checkbox.create)
   return h('div', { class: 'pb1' }, [
     h('span', {
       class: 'inline-block mr1 align-middle'
     }, 'Filter by '),
     typeFilter,
+    ownerFilter,
     // h('button', {class: 'btn mr2'}, 'Owner'),
     h('span', { class: 'inline-block ml1 align-middle' }, [
-      checkbox.view(scope(state, 'public-checkbox-' + listName), actions)
+      h('input', { type: 'checkbox' }),
+      h('span', {}, 'Public')
+      // checkbox.view(scope(state, 'public-checkbox-' + listName), actions)
     ]),
     h('span', { class: 'inline-block ml2 align-middle' }, [
+      h('input', { type: 'checkbox' }),
+      h('span', {}, 'Private')
+      /*
+      filterDropdown({
+        path: [listName, 'filter-type']
+      })
       checkbox({
-        scope: [listName, 'checkbox-private'],
+        path: [listName, 'checkbox-private'],
         defaults: { text: 'Private', name: 'Private', checked: true },
         state,
         actions,
@@ -588,6 +558,7 @@ function filterTools ({types, list, listName}, state, actions) {
         name: 'private',
         checked: true
       }, state, actions)
+      */
     ])
   ])
 }
@@ -649,13 +620,14 @@ function loadingTable () {
 // Render to the page
 const container = document.querySelector('#hyperapp-container')
 const appActions = app(state, actions, view, container)
+window.appActions = appActions
 
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false)
 // Default app config -- overridden by postMessage handlers further below
 window._env = {
   kbaseEndpoint: 'https://ci.kbase.us',
-  sketchURL: 'https://ci.kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service',
+  sketchURL: 'https://kbase.us/dynserv/667eef100933005650909556d078328242b1d3ab.sketch-service',
   relEngURL: 'https://ci.kbase.us/services/relation_engine_api',
   authToken: null
 }
@@ -692,6 +664,9 @@ window._messageHandlers = {
   },
   setAuthToken: function (params) {
     window._env.authToken = params.token
+  },
+  setRootUrl: function (params) {
+    window._env.kbaseRootUrl = params.url.replace(/\/$/, '')
   }
 }
 
@@ -704,5 +679,9 @@ function getTypeArray (objects) {
 }
 
 // TODO remove this -- testing purposes only
-window._messageHandlers.setAuthToken({ token: 'ITI7Y46RC6MSUS2ELLTQCBVASIMAXT6O' })
-window._messageHandlers.setUPA({ upa: '15:8:1' })
+// window._messageHandlers.setAuthToken({ token: 'LPIX46RNMMHGUGM2KHNAS6JSLQBYYVH4' })
+window._messageHandlers.setRootUrl({ url: 'https://narrative-dev.kbase.us' })
+window._messageHandlers.setAuthToken({ token: 'AASKV2ZWFVDU375FV6Y6NHF2QUYA6S76' })
+window._messageHandlers.setKBaseEndpoint({ url: 'https://kbase.us/services' })
+window._messageHandlers.setRelEngURL({ url: 'https://kbase.us/services/relation_engine_api' })
+window._messageHandlers.setUPA({ upa: '39686/45/1' })

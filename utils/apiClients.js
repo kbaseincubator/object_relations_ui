@@ -19,7 +19,9 @@ function fetchHomologs (upa, token) {
   const url = window._env.sketchURL
   const payload = {
     method: 'get_homologs',
-    params: [upa]
+    params: {
+      ws_ref: upa.replace(/:/g, '/')
+    }
   }
   const headers = {}
   if (window._env.authToken) {
@@ -39,6 +41,7 @@ function fetchHomologs (upa, token) {
     })
 }
 
+/*
 // Fetch a random object to search on
 // We find an object that has at least 1 copy, so the data is somewhat interesting
 function fetchRandom () {
@@ -64,7 +67,7 @@ function fetchRandom () {
     // .then(() => actions.update({ loadingUpa: false, error: null }))
     .catch(err => { console.error(err) })
 }
-window.fetchRandom = fetchRandom
+*/
 
 function fetchObj (upa, token) {
   // Fetch info about an object
