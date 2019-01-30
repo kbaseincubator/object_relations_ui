@@ -195,7 +195,7 @@ function view (state, actions) {
     formElem,
     showIf(state.error, h('p', { class: 'error' }, state.error)),
     // objInfo(state, actions),
-    h('p', {}, [h('strong', {}, '47'), ' total related objects']),
+    // h('p', {}, [h('strong', {}, '47'), ' total related objects']),
     linkedObjsSection(state, actions),
     copyObjsSection(state, actions),
     similarData(state, actions)
@@ -208,9 +208,13 @@ function form (state, actions) {
     onsubmit: ev => {
       ev.preventDefault()
       const formData = serialize(ev.currentTarget, { hash: true })
-      window._messageHandlers.setKBaseEndpoint({ url: formData.endpoint })
-      window._messageHandlers.setAuthToken({ token: formData.token })
-      window._messageHandlers.setUPA({ upa: formData.upa })
+      window._messageHandlers.setConfig({
+        config: {
+          kbaseEndpoint: formData.endpoint,
+          authToken: formData.token,
+          upa: formData.upa
+        }
+      })
       newSearch(state, actions, state.upa)
     }
   }, [
@@ -621,9 +625,9 @@ window.appActions = appActions
 window.addEventListener('message', receiveMessage, false)
 // Default app config -- overridden by postMessage handlers further below
 window._env = {
-  kbaseEndpoint: 'https://ci.kbase.us',
+  kbaseEndpoint: 'https://kbase.us/services',
   sketchURL: 'https://kbase.us/dynserv/667eef100933005650909556d078328242b1d3ab.sketch-service',
-  relEngURL: 'https://ci.kbase.us/services/relation_engine_api',
+  relEngURL: 'https://kbase.us/services/relation_engine_api',
   authToken: null
 }
 function receiveMessage (ev) {
@@ -642,6 +646,7 @@ function receiveMessage (ev) {
   window._messageHandlers[data.method](data.params)
 }
 
+// Set the app configuration data
 window._messageHandlers = {
   setConfig: function ({ config }) {
     if (typeof config !== 'object') return
@@ -660,8 +665,6 @@ function getTypeArray (objects) {
   }, {}))
 }
 
-// Token below is revoked
-// window._messageHandlers.setAuthToken({ token: 'LPIX46RNMMHGUGM2KHNAS6JSLQBYYVH4' })
 /*
 window._messageHandlers.setConfig({
   config: {
