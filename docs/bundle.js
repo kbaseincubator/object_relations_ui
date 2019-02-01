@@ -369,7 +369,7 @@ function dataSection(entry, subText, state, actions) {
   var iconColor = icons.colors[type];
   var iconInitial = type.split('').filter(function (c) {
     return c === c.toUpperCase();
-  }).slice(0, 3).join('');
+  }).slice(0, 2).join('');
   return h('div', {}, [h('div', {
     class: 'h3-5 mt1 clearfix relative result-row hover-parent',
     style: { 'whiteSpace': 'nowrap' },
@@ -381,7 +381,7 @@ function dataSection(entry, subText, state, actions) {
   }), h('span', {
     class: 'mr1 circle inline-block ' + (entry.expanded ? 'hover-caret-up' : 'hover-caret-down'),
     style: { background: iconColor }
-  }, [h('span', { class: 'hover-hide' }, [iconInitial]), h('span', { class: 'hover-arrow hover-inline-block' }, entry.expanded ? '⭡' : '⭣')]), h('h4', { class: 'm0 p0 bold', style: { paddingLeft: '32px' } }, [entryName, showIf(!entry.expanded, function () {
+  }, [h('span', { class: 'hover-hide' }, [iconInitial]), h('span', { class: 'hover-arrow hover-inline-block' }, entry.expanded ? '-' : '+')]), h('h4', { class: 'm0 p0 bold', style: { paddingLeft: '32px' } }, [entryName, showIf(!entry.expanded, function () {
     return h('span', { class: 'caret-up' });
   }), showIf(entry.expanded, function () {
     return h('span', { class: 'caret-down' });
@@ -887,7 +887,8 @@ function fetchHomologs(upa, token) {
   var payload = {
     method: 'get_homologs',
     params: {
-      ws_ref: upa.replace(/:/g, '/')
+      ws_ref: upa.replace(/:/g, '/'),
+      n_max_results: 100
     }
   };
   var headers = {};
