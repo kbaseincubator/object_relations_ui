@@ -395,7 +395,7 @@ function dataSection (entry, subText, state, actions) {
   const entryName = entry.obj_name
   const type = typeName(entry.ws_type)
   const iconColor = icons.colors[type]
-  const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 3).join('')
+  const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 2).join('')
   return h('div', {}, [
     h('div', {
       class: 'h3-5 mt1 clearfix relative result-row hover-parent',
@@ -410,7 +410,7 @@ function dataSection (entry, subText, state, actions) {
         style: { background: iconColor }
       }, [
         h('span', { class: 'hover-hide' }, [iconInitial]),
-        h('span', { class: 'hover-arrow hover-inline-block' }, entry.expanded ? '⭡' : '⭣')
+        h('span', { class: 'hover-arrow hover-inline-block' }, entry.expanded ? '-' : '+')
       ]),
       h('h4', { class: 'm0 p0 bold', style: { paddingLeft: '32px' } }, [
         entryName,

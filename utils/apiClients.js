@@ -20,7 +20,8 @@ function fetchHomologs (upa, token) {
   const payload = {
     method: 'get_homologs',
     params: {
-      ws_ref: upa.replace(/:/g, '/')
+      ws_ref: upa.replace(/:/g, '/'),
+      n_max_results: 100
     }
   }
   const headers = {}
