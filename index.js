@@ -1,15 +1,39 @@
-const Component = require('./utils/Component')
+// npm
 const h = require('snabbdom/h').default
+
+// utils
 const showIf = require('./utils/showIf')
-const { fetchLinkedObjs, fetchCopies } = require('./utils/apiClients')
+const { fetchLinkedObjs } = require('./utils/apiClients')
+const toObjKey = require('./utils/toObjKey')
+const toUpa = require('./utils/toUpa')
+
+// components
+const Component = require('./components/Component')
+const UpaForm = require('./components/UpaForm')
 
 function Page () {
   return Component({
+    loading: 0,
     obj: {}, // workspace object
+    upaForm: UpaForm(),
     fetchUpa (upa) {
       this.obj.upa = upa
-      this.loading = true
+      this.loading += 1
       this._render()
+      const key = toObjKey(upa)
+      fetchLinkedObjs(key)
+        .then(resp => {
+          if (resp.results) {
+            this.linked = resp.results
+            this.linkedCount = resp.count
+            this.linkedCursor = resp.has_more ? resp.cursor_id : null
+          } else if (resp.error) {
+            this.error = resp.error
+          }
+          this.loading -= 1
+          this._render()
+        })
+      /*
       fetchLinkedObjs([upa], null)
         .then(results => {
           if (results && results.links) {
@@ -17,7 +41,7 @@ function Page () {
           } else {
             this.linked = null
           }
-          this.loading = false
+          this.loading -= 1
           this._render()
         })
       fetchCopies(upa, null)
@@ -27,28 +51,34 @@ function Page () {
           } else {
             this.copies = null
           }
-          this.loading = false
+          this.loading -= 1
           this._render()
         })
+      */
     },
     view
   })
 }
 
 function view () {
-  const cmp = this
-  return h('div.container.p2.max-width-3', [
-    h('p', 'hello world'),
-    showIf(cmp.loading, () => h('p', 'Loading...')),
-    showIf(cmp.error, () => h('p.error', cmp.error)),
-    showIf(cmp.linked, () => dataTable(cmp, 'Linked Data', cmp.linked)),
-    showIf(cmp.copies, () => dataTable(cmp, 'Copies', cmp.copies))
+  const page = this
+  const div = content => h('div.container.p2.max-width-3', content)
+  return div([
+    page.upaForm.view(),
+    showIf(page.loading, () => h('p', 'Loading...')),
+    showIf(page.error, () => h('p.error', page.error)),
+    showIf(page.linked, () => dataTable(page, 'Related Data', page.linked)),
+    noResults(page, 'No linked data found', page.linked)
   ])
 }
 
-function dataTable (cmp, title, data) {
-  return h('div', [
-    sectionHeader(title, data.length + ' total'),
+function dataTable (page, title, data) {
+  return h('div', {
+    class: {
+      'muted': page.loading
+    }
+  }, [
+    sectionHeader(title, page.linkedCount + ' total'),
     h('table.table-lined', [
       h('thead', [
         h('tr', [
@@ -58,22 +88,34 @@ function dataTable (cmp, title, data) {
           h('th', 'Narrative')
         ])
       ]),
-      h('tbody', cmp.linked.map(linked => {
-        const hrefs = objHrefs(linked)
+      h('tbody', data.map(({ path, vertex }) => {
+        const hrefs = objHrefs(vertex)
         return h('tr', [
           h('td', [
-            h('a', { props: { href: hrefs.obj } }, linked.obj_name)
+            h('a', { props: { href: hrefs.obj } }, vertex.obj_name)
           ]),
-          h('td', typeName(linked.ws_type)),
+          h('td', typeName(vertex.ws_type)),
           h('td', [
-            h('a', { props: { href: hrefs.owner } }, linked.owner)
+            h('a', { props: { href: hrefs.owner } }, vertex.owner)
           ]),
           h('td', [
-            h('a', { props: { href: hrefs.narrative } }, linked.narr_name)
+            h('a', { props: { href: hrefs.narrative } }, vertex.narr_name)
           ])
         ])
       }))
     ])
+  ])
+}
+
+function noResults (page, msg, results) {
+  if (page.loading) return ''
+  if (results) return ''
+  return h('div.mt2', {
+    style: {
+      borderTop: '1px solid #ddd'
+    }
+  }, [
+    h('p.muted', msg)
   ])
 }
 
@@ -105,7 +147,7 @@ function objHrefs (obj) {
   if (obj.upa) {
     hrefs.obj = dataview + obj.upa
   } else if (obj._key) {
-    hrefs.obj = dataview + obj._key.replace(/:/g, '/')
+    hrefs.obj = dataview + toUpa(obj._key)
   }
   if (obj.workspace_id) {
     hrefs.narrative = `https://narrative.kbase.us/narrative/ws.${obj.workspace_id}.obj.1`
@@ -115,9 +157,6 @@ function objHrefs (obj) {
   }
   return hrefs
 }
-
-document._page = Page()
-document.body.appendChild(document._page._render().elm)
 
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false)
@@ -129,6 +168,10 @@ window._env = {
   authToken: null
 }
 
+// Initialize the Page component
+document._page = Page()
+
+// Receive JSON data in a post message
 function receiveMessage (ev) {
   let data
   try {
@@ -145,21 +188,17 @@ function receiveMessage (ev) {
   window._messageHandlers[data.method](data.params)
 }
 
+// Handle post message methods
 window._messageHandlers = {
-  setUPA: function (params) {
-    document._page.fetchUpa({ upa: params.upa })
-  },
-  setKBaseEndpoint: function (params) {
-    window._env.kbaseEndpoint = noTrailingSlash(params.url)
-  },
-  setRelEngURL: function (params) {
-    window._env.relEngURL = noTrailingSlash(params.url)
-  },
-  setSketchURL: function (params) {
-    window._env.sketchURL = noTrailingSlash(params.url)
-  },
-  setAuthToken: function (params) {
-    window._env.authToken = params.token
+  setConfig: function ({ config }) {
+    window._env = Object.assign(window._env, config)
+    if (config.upa) {
+      document._page.fetchUpa(config.upa)
+    }
   }
 }
-const noTrailingSlash = str => str.replace(/\/$/, '')
+
+// TODO use this: const noTrailingSlash = str => str.replace(/\/$/, '')
+
+// -- Render the page component
+document.body.appendChild(document._page._render().elm)

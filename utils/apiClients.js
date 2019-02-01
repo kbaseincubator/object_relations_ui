@@ -1,16 +1,102 @@
-module.exports = { fetchLinkedObjs, fetchCopies, fetchHomologs, fetchObj }
+module.exports = { fetchLinkedObjs, fetchCopies, fetchHomologs, fetchObj, fetchTypeCounts }
 
+/*
 // Fetch all linked and sub-linked data from an upa
-function fetchLinkedObjs (upas, token) {
-  upas = upas.map(upa => upa.replace(/\//g, ':'))
+function fetchLinkedObjs (upas) {
+  upas = upas.map(formatObjKey)
   const payload = { obj_keys: upas, link_limit: 10 }
+  const token = window._env.authToken
   return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' })
 }
+*/
+
+const typeCountsQuery = `
+with wsprov_object
+let obj_id = CONCAT("wsprov_object/", @obj_key)
+for v, e, p in 1..@max_depth
+  any obj_id wsprov_links, wsprov_copied_into
+  options {uniqueVertices: "global", bfs: true}
+  filter p.vertices[1].is_taxon != true
+  FILTER (@show_private && @show_public) ? (v.is_public || v.workspace_id IN @ws_ids) :
+      (!@show_private || v.workspace_id IN @ws_ids) && (!@show_public || v.is_public)
+  collect type = v.ws_type with count into type_count
+  return {type, type_count}
+`
+
+const linkedQuery = `
+with wsprov_object
+let obj_id = CONCAT("wsprov_object/", @obj_key)
+for v, e, p in 1..@max_depth
+    any obj_id wsprov_links, wsprov_copied_into
+    options {uniqueVertices: "global", bfs: true}
+    FILTER p.vertices[1].is_taxon != true
+    FILTER (!@types || v.workspace_type IN @types)
+    FILTER (!@owners || v.owner IN @owners)
+    FILTER (@show_private && @show_public) ? (v.is_public || v.workspace_id IN @ws_ids) :
+        (!@show_private || v.workspace_id IN @ws_ids) && (!@show_public || v.is_public)
+    return {
+        vertex: {
+            _key: v._key,
+            is_public: v.is_public,
+            narr_name: v.narr_name,
+            obj_name: v.obj_name,
+            owner: v.owner,
+            save_date: v.save_date,
+            workspace_id: v.workspace_id,
+            ws_type: v.ws_type
+        },
+        path: {
+            edges: p.edges[*]._id,
+            verts: p.vertices[*]._id
+        }
+    }
+`
+
+function fetchLinkedObjs (key) {
+  const payload = {
+    query: linkedQuery,
+    max_depth: 3,
+    obj_key: key,
+    types: false,
+    owners: false,
+    show_private: true,
+    show_public: true,
+    ws_ids: [39200]
+  }
+  const token = window._env.authToken
+  return aqlQuery(payload, token)
+}
+
+function fetchTypeCounts (key) {
+  const payload = {
+    max_depth: 3,
+    show_public: true,
+    show_private: true,
+  }
+  const token = window._env.authToken
+  return aqlQuery(payload, token)
+}
+
+window.fetchLinkedObjs = fetchLinkedObjs
 
 // Fetch all copies and linked objects of those copies from an upa
-function fetchCopies (upa, token, cb) {
-  const payload = { obj_key: upa.replace(/\//g, ':'), copy_limit: 50 }
+function fetchCopies (upa) {
+  const payload = { obj_key: formatObjKey(upa), copy_limit: 50 }
+  const token = window._env.authToken
   return aqlQuery(payload, token, { view: 'wsprov_fetch_copies' })
+}
+
+/*
+function fetchTypeCounts (upa) {
+  const payload = { key: formatObjKey(upa), is_private: false, is_public: false, owners: false, simplify_type: false }
+  const token = window._env.authToken
+  return aqlQuery(payload, token, { view: 'list_referencing_type_counts' })
+}
+*/
+
+function formatObjKey (upa) {
+  // UPA delimiter in arango is a ':' rather than a '/'
+  return upa.replace(/\//g, ':')
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
@@ -86,7 +172,7 @@ function aqlQuery (payload, token, params) {
   })
     .then(resp => resp.json())
     .then(json => {
-      if (json && json.results) return json.results[0]
+      if (json && json.results) return json
       if (json && json.error) throw new Error(json.error)
     })
 }

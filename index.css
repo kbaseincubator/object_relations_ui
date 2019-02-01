@@ -1,6 +1,3 @@
-body {
-  background: #fdfdfd;
-}
 * {
   font-family: Oxygen, Helvetica, Arial, sans-serif;
   color: #444;
@@ -91,6 +88,9 @@ fieldset {
 .muted {
   opacity: 0.75;
 }
+.faded {
+  opacity: 0.25;
+}
 .input {
   border: none;
   background: #f8f8f8;
@@ -174,11 +174,8 @@ a[target="_blank"]::after {
 }
 .table-lined th,
 .table-lined td {
-  padding: 0.35rem 0.25rem;
-}
-.table-lined th {
-  text-align: left;
-  border: 0;
+  padding: 0.35rem 0;
+  padding-right: 0.5rem;
 }
 .table-lined td {
   max-width: 18rem;
@@ -187,11 +184,22 @@ a[target="_blank"]::after {
   white-space: nowrap;
   border: 0;
 }
-.table-lined thead th {
-  border-bottom: 1px solid #bbb;
-}
 .table-lined tbody tr:hover {
   background-color: #eee;
+}
+.table-lined th {
+  text-align: left;
+  position: sticky;
+  top: 0px;
+  background: white;
+}
+.table-lined th:after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  border-bottom: 1px solid #bbb;
 }
 /** /Tables **/
 
