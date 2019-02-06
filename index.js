@@ -28,10 +28,10 @@ const actions = {
     entry.expanded = !entry.expanded
     entry.loading = true
     if (!entry.sublinks || !entry.sublinks.length) {
-      fetchLinkedObjs([upa], window._env.authToken)
+      fetchLinkedObjs(upa, window._env.authToken)
         .then(results => {
-          if (results && results.links) {
-            entry.sublinks = results.links
+          if (results) {
+            entry.sublinks = results
           } else {
             entry.sublinks = []
           }
@@ -69,32 +69,17 @@ function newSearch (state, actions, upa) {
     loadingCopies: true,
     loadingLinks: true
   })
-  /*
-  // Fetch the object itself to get name, type, etc
-  fetchObj(state.upa, window._env.authToken)
-    .then(results => {
-      if (results) {
-        actions.update({ obj: results })
-      } else {
-        if (!state.obj || !state.obj_name) {
-          actions.update({ obj: { obj_name: 'Object ' + state.upa, upa: state.upa } })
-        }
-      }
-      return fetchLinkedObjs(state.upa, window._env.authToken)
-    })
-    */
   function logError (err) {
     console.log(err)
     console.trace()
   }
   // Fetch all objects linked by reference or by provenance
-  fetchLinkedObjs([state.upa], window._env.authToken)
+  fetchLinkedObjs(state.upa, window._env.authToken)
     .then(results => {
       console.log('linked results', results)
       // Get an object of type names for filtering these results
       if (results) {
-        const types = getTypeArray(results.links)
-        actions.update({ links: results, linkTypes: types })
+        actions.update({ links: results })
       }
       actions.update({ loadingLinks: false })
     })
@@ -108,8 +93,7 @@ function newSearch (state, actions, upa) {
       console.log('copy results', results)
       // Get an object of type names for filtering these results
       if (results) {
-        const types = getTypeArray(results.copies)
-        actions.update({ copies: results, copyTypes: types })
+        actions.update({ copies: results })
       }
       actions.update({ loadingCopies: false })
     })
@@ -122,17 +106,9 @@ function newSearch (state, actions, upa) {
   fetchHomologs(state.upa)
     .then(results => {
       console.log('homology results', results)
+      actions.update({ searching: false })
       if (!results || !results.length) return
       actions.update({ similar: results })
-      const kbaseResults = results.filter(r => 'kbase_id' in r)
-        .map(r => r.kbase_id.replace(/\//g, ':'))
-      console.log('kbase results', kbaseResults)
-      // TODO Find all linked objects for each results with a kbase_id
-      return fetchLinkedObjs(kbaseResults, window._env.authToken)
-    })
-    .then(results => {
-      console.log('homology link results', results)
-      actions.update({ similarLinked: results, searching: false })
     })
     .catch(err => {
       actions.update({ error: String(err), searching: false })
@@ -215,7 +191,6 @@ function form (state, actions) {
           upa: formData.upa
         }
       })
-      newSearch(state, actions, state.upa)
     }
   }, [
     h('fieldset', {class: 'inline-block mr2'}, [
@@ -305,10 +280,10 @@ function linkedObjsSection (state, actions) {
     ])
     // return h('p', {class: 'muted bold'}, 'Loading related data...')
   }
-  if (!state.links || !state.links.links.length) {
+  if (!state.links || !state.links.length) {
     return h('p', {class: 'muted'}, 'There are no objects linked to this one.')
   }
-  const links = state.links.links
+  const links = state.links
   return h('div', {}, [
     header('Linked Data', links.length + ' total'),
     /*
@@ -334,10 +309,10 @@ function copyObjsSection (state, actions) {
       loadingBoxes()
     ])
   }
-  if (!state.copies || !state.copies.copies.length) {
+  if (!state.copies || !state.copies.length) {
     return h('p', {class: 'muted no-results'}, 'There are no copies of this object.')
   }
-  const copies = state.copies.copies
+  const copies = state.copies
   // const sublinks = state.copies.sublinks
   return h('div', {class: 'clearfix mt2'}, [
     header('Copies', copies.length + ' total'),
@@ -501,7 +476,7 @@ function subDataSection (subentry, entry, state, actions) {
 // Filter results
 // `listName` should be one of 'links', 'copies', or 'similar'
 // `types` should be a list of types to filter on (eg. state.linkTypes)
-// `list` should be a list of objects (eg. state.links.links)
+// `list` should be a list of objects (eg. state.links)
 function filterTools ({types, list, listName}, state, actions) {
   const typeFilter = h('button', {
     class: 'btn'
@@ -626,7 +601,7 @@ window.addEventListener('message', receiveMessage, false)
 // Default app config -- overridden by postMessage handlers further below
 window._env = {
   kbaseEndpoint: 'https://kbase.us/services',
-  sketchURL: 'https://kbase.us/dynserv/667eef100933005650909556d078328242b1d3ab.sketch-service',
+  sketchURL: 'https://kbase.us/dynserv/deac1a3ee9f55f5a229ddb61875cd0b98f5d1987.sketch-service',
   relEngURL: 'https://kbase.us/services/relation_engine_api',
   authToken: null
 }
@@ -656,23 +631,3 @@ window._messageHandlers = {
     }
   }
 }
-
-// From a collection of objects, get an array of readable type names
-function getTypeArray (objects) {
-  return Object.keys(objects.reduce((obj, link) => {
-    obj[typeName(link.ws_type)] = true
-    return obj
-  }, {}))
-}
-
-/*
-window._messageHandlers.setConfig({
-  config: {
-    rootURL: 'https://narrative-dev.kbase.us',
-    authToken: '',
-    kbaseEndpoint: 'https://kbase.us/services',
-    relEngURL: 'https://kbase.us/services/relation_engine_api',
-    upa: '39686/45/1'
-  }
-})
-*/
