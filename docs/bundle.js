@@ -37,9 +37,9 @@ var actions = {
       entry.expanded = !entry.expanded;
       entry.loading = true;
       if (!entry.sublinks || !entry.sublinks.length) {
-        fetchLinkedObjs([upa], window._env.authToken).then(function (results) {
-          if (results && results.links) {
-            entry.sublinks = results.links;
+        fetchLinkedObjs(upa, window._env.authToken).then(function (results) {
+          if (results) {
+            entry.sublinks = results;
           } else {
             entry.sublinks = [];
           }
@@ -83,31 +83,16 @@ var actions = {
     loadingCopies: true,
     loadingLinks: true
   });
-  /*
-  // Fetch the object itself to get name, type, etc
-  fetchObj(state.upa, window._env.authToken)
-    .then(results => {
-      if (results) {
-        actions.update({ obj: results })
-      } else {
-        if (!state.obj || !state.obj_name) {
-          actions.update({ obj: { obj_name: 'Object ' + state.upa, upa: state.upa } })
-        }
-      }
-      return fetchLinkedObjs(state.upa, window._env.authToken)
-    })
-    */
   function logError(err) {
     console.log(err);
     console.trace();
   }
   // Fetch all objects linked by reference or by provenance
-  fetchLinkedObjs([state.upa], window._env.authToken).then(function (results) {
+  fetchLinkedObjs(state.upa, window._env.authToken).then(function (results) {
     console.log('linked results', results);
     // Get an object of type names for filtering these results
     if (results) {
-      var types = getTypeArray(results.links);
-      actions.update({ links: results, linkTypes: types });
+      actions.update({ links: results });
     }
     actions.update({ loadingLinks: false });
   }).catch(function (err) {
@@ -119,8 +104,7 @@ var actions = {
     console.log('copy results', results);
     // Get an object of type names for filtering these results
     if (results) {
-      var types = getTypeArray(results.copies);
-      actions.update({ copies: results, copyTypes: types });
+      actions.update({ copies: results });
     }
     actions.update({ loadingCopies: false });
   }).catch(function (err) {
@@ -131,19 +115,9 @@ var actions = {
   actions.update({ searching: true });
   fetchHomologs(state.upa).then(function (results) {
     console.log('homology results', results);
+    actions.update({ searching: false });
     if (!results || !results.length) return;
     actions.update({ similar: results });
-    var kbaseResults = results.filter(function (r) {
-      return 'kbase_id' in r;
-    }).map(function (r) {
-      return r.kbase_id.replace(/\//g, ':');
-    });
-    console.log('kbase results', kbaseResults);
-    // TODO Find all linked objects for each results with a kbase_id
-    return fetchLinkedObjs(kbaseResults, window._env.authToken);
-  }).then(function (results) {
-    console.log('homology link results', results);
-    actions.update({ similarLinked: results, searching: false });
   }).catch(function (err) {
     actions.update({ error: String(err), searching: false });
     logError(err);
@@ -219,7 +193,6 @@ function form(state, actions) {
           upa: formData.upa
         }
       });
-      newSearch(state, actions, state.upa);
     }
   }, [h('fieldset', { class: 'inline-block mr2' }, [h('label', { class: 'block mb2 bold' }, 'KBase endpoint'), h('input', {
     class: 'input p1',
@@ -290,10 +263,10 @@ function linkedObjsSection(state, actions) {
     return h('div', {}, [header('Linked Data', 'Loading...'), loadingBoxes()]);
     // return h('p', {class: 'muted bold'}, 'Loading related data...')
   }
-  if (!state.links || !state.links.links.length) {
+  if (!state.links || !state.links.length) {
     return h('p', { class: 'muted' }, 'There are no objects linked to this one.');
   }
-  var links = state.links.links;
+  var links = state.links;
   return h('div', {}, [header('Linked Data', links.length + ' total'),
   /*
   filterTools({
@@ -314,10 +287,10 @@ function copyObjsSection(state, actions) {
   if (state.loadingCopies) {
     return h('div', {}, [header('Copies', 'Loading...'), loadingBoxes()]);
   }
-  if (!state.copies || !state.copies.copies.length) {
+  if (!state.copies || !state.copies.length) {
     return h('p', { class: 'muted no-results' }, 'There are no copies of this object.');
   }
-  var copies = state.copies.copies;
+  var copies = state.copies;
   // const sublinks = state.copies.sublinks
   return h('div', { class: 'clearfix mt2' }, [header('Copies', copies.length + ' total'),
   /*
@@ -429,7 +402,7 @@ function subDataSection(subentry, entry, state, actions) {
 // Filter results
 // `listName` should be one of 'links', 'copies', or 'similar'
 // `types` should be a list of types to filter on (eg. state.linkTypes)
-// `list` should be a list of objects (eg. state.links.links)
+// `list` should be a list of objects (eg. state.links)
 function filterTools ({types, list, listName}, state, actions) {
   const typeFilter = h('button', {
     class: 'btn'
@@ -546,7 +519,7 @@ window.addEventListener('message', receiveMessage, false);
 // Default app config -- overridden by postMessage handlers further below
 window._env = {
   kbaseEndpoint: 'https://kbase.us/services',
-  sketchURL: 'https://kbase.us/dynserv/667eef100933005650909556d078328242b1d3ab.sketch-service',
+  sketchURL: 'https://kbase.us/dynserv/deac1a3ee9f55f5a229ddb61875cd0b98f5d1987.sketch-service',
   relEngURL: 'https://kbase.us/services/relation_engine_api',
   authToken: null
 };
@@ -577,26 +550,7 @@ window._messageHandlers = {
       appActions.setObject({ upa: config.upa });
     }
   }
-
-  // From a collection of objects, get an array of readable type names
-};function getTypeArray(objects) {
-  return Object.keys(objects.reduce(function (obj, link) {
-    obj[typeName(link.ws_type)] = true;
-    return obj;
-  }, {}));
-}
-
-/*
-window._messageHandlers.setConfig({
-  config: {
-    rootURL: 'https://narrative-dev.kbase.us',
-    authToken: '',
-    kbaseEndpoint: 'https://kbase.us/services',
-    relEngURL: 'https://kbase.us/services/relation_engine_api',
-    upa: '39686/45/1'
-  }
-})
-*/
+};
 },{"./utils/apiClients":4,"./utils/icons":5,"./utils/showIf":6,"form-serialize":2,"hyperapp":3}],2:[function(require,module,exports){
 // get successful control from form and assemble into object
 // http://www.w3.org/TR/html401/interact/forms.html#h-17.13.2
@@ -866,18 +820,30 @@ module.exports = serialize;
 module.exports = { fetchLinkedObjs: fetchLinkedObjs, fetchCopies: fetchCopies, fetchHomologs: fetchHomologs, fetchObj: fetchObj
 
   // Fetch all linked and sub-linked data from an upa
-};function fetchLinkedObjs(upas, token) {
-  upas = upas.map(function (upa) {
-    return upa.replace(/\//g, ':');
-  });
-  var payload = { obj_keys: upas, link_limit: 20 };
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' });
+};function fetchLinkedObjs(upa, token) {
+  upa = upa.replace(/\//g, ':');
+  var payload = {
+    obj_key: upa,
+    show_private: true,
+    show_public: true,
+    offset: 0,
+    result_limit: 10,
+    types: false
+  };
+  return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects', batch_size: 10 });
 }
 
 // Fetch all copies and linked objects of those copies from an upa
 function fetchCopies(upa, token, cb) {
-  var payload = { obj_key: upa.replace(/\//g, ':'), copy_limit: 20 };
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_copies' });
+  var payload = {
+    obj_key: upa.replace(/\//g, ':'),
+    show_private: true,
+    show_public: true,
+    offset: 0,
+    types: false,
+    result_limit: 10
+  };
+  return aqlQuery(payload, token, { view: 'wsprov_fetch_copies', batch_size: 10 });
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
@@ -947,6 +913,7 @@ function fetchObj(upa, token) {
 function aqlQuery(payload, token, params) {
   var apiUrl = window._env.relEngURL.replace(/\/$/, ''); // remove trailing slash
   var url = apiUrl + '/api/query_results/' + queryify(params);
+  console.log({ url: url });
   var headers = {};
   if (token) headers.Authorization = token;
   return window.fetch(url, {
@@ -957,7 +924,7 @@ function aqlQuery(payload, token, params) {
   }).then(function (resp) {
     return resp.json();
   }).then(function (json) {
-    if (json && json.results) return json.results[0];
+    if (json && json.results) return json.results;
     if (json && json.error) throw new Error(json.error);
   });
 }
