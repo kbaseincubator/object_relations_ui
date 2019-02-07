@@ -52,6 +52,13 @@ fieldset {
   background: rgb(58, 183, 135);
   position: absolute;
   left: 11px;
+  top: 0;
+}
+.hover-parent {
+  cursor: pointer;
+}
+.hover-parent:hover h4 {
+  color: #2a72b4;
 }
 .hover-parent:hover .hover-hide {
   display: none;
@@ -150,12 +157,6 @@ fieldset {
 .breadcrumb:last-child a {
   font-weight: bold;
 }
-.result-row {
-  cursor: pointer;
-}
-.result-row:hover h4 {
-  color: #2a72b4;
-}
 .small {
   font-size: 0.9rem;
 }
@@ -168,17 +169,17 @@ a[target="_blank"]::after {
 
 /** Tables **/
 .table-lined {
-  width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
+  width: 100%;
 }
 .table-lined th,
 .table-lined td {
   padding: 0.35rem 0;
-  padding-right: 0.5rem;
+  padding-right: 1rem;
 }
 .table-lined td {
-  max-width: 18rem;
+  max-width: 13rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

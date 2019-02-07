@@ -2,8 +2,9 @@
 const h = require('snabbdom/h').default
 
 // utils
+const icons = require('./utils/icons')
 const showIf = require('./utils/showIf')
-const { fetchLinkedObjs } = require('./utils/apiClients')
+const { fetchHomologs, fetchTypeCounts, fetchLinkedObjs } = require('./utils/apiClients')
 const toObjKey = require('./utils/toObjKey')
 const toUpa = require('./utils/toUpa')
 
@@ -18,43 +19,59 @@ function Page () {
     upaForm: UpaForm(),
     fetchUpa (upa) {
       this.obj.upa = upa
-      this.loading += 1
+      this.loading = true
       this._render()
       const key = toObjKey(upa)
-      fetchLinkedObjs(key)
+      console.log('upa', upa)
+      this.loadingHomologs = true
+      fetchHomologs(upa)
         .then(resp => {
+          this.loadingHomologs = false
+          if (resp && resp.length) {
+            this.homologs = resp
+          } else {
+            this.homologs = null
+          }
+          this._render()
+        })
+      fetchTypeCounts(key, null)
+        .then(resp => {
+          if (resp.results && resp.results.length) {
+            this.typeCounts = resp.results
+          } else {
+            this.typeCounts = null
+          }
+          this.loading = false
+          this._render()
+        })
+        .catch(err => {
+          console.error(err)
+          this.loading = false
+          this._render()
+        })
+    },
+    fetchTypeList (entry) {
+      const { type } = entry
+      entry.loading = true
+      fetchLinkedObjs(toObjKey(this.obj.upa), type)
+        .then(resp => {
+          entry.subdata = null
           if (resp.results) {
-            this.linked = resp.results
-            this.linkedCount = resp.count
-            this.linkedCursor = resp.has_more ? resp.cursor_id : null
+            entry.subdata = resp.results
           } else if (resp.error) {
-            this.error = resp.error
-          }
-          this.loading -= 1
-          this._render()
-        })
-      /*
-      fetchLinkedObjs([upa], null)
-        .then(results => {
-          if (results && results.links) {
-            this.linked = results.links
+            console.error(resp.error)
           } else {
-            this.linked = null
           }
-          this.loading -= 1
+          entry.loading = false
+          console.log('resp', resp)
           this._render()
         })
-      fetchCopies(upa, null)
-        .then(results => {
-          if (results && results.copies) {
-            this.copies = results.copies
-          } else {
-            this.copies = null
-          }
-          this.loading -= 1
+        .catch(err => {
+          console.error(err)
+          entry.loading = false
           this._render()
         })
-      */
+      this._render()
     },
     view
   })
@@ -62,28 +79,133 @@ function Page () {
 
 function view () {
   const page = this
+  window._page = page
   const div = content => h('div.container.p2.max-width-3', content)
   return div([
     page.upaForm.view(),
-    showIf(page.loading, () => h('p', 'Loading...')),
+    showIf(page.loading, () => h('p.muted', 'Loading...')),
     showIf(page.error, () => h('p.error', page.error)),
-    showIf(page.linked, () => dataTable(page, 'Related Data', page.linked)),
-    noResults(page, 'No linked data found', page.linked)
+    showIf(page.typeCounts, () => typeHeaders(page)),
+    showIf(!page.loading && page.loadingHomologs, () => h('p.muted', 'Loading similar data...')),
+    showIf(page.homologs, () => homologTable(page)),
+    showIf(!page.loading && !page.loadingHomologs && !page.typeCounts && !page.homologs, () =>
+      h('p.muted', 'No results found')
+    )
+  ])
+}
+
+function typeHeaders (page) {
+  return h('div', {
+    class: { faded: page.loading }
+  }, [
+    h('h2', 'Linked Data'),
+    h('div', page.typeCounts.map(entry => {
+      const { type_count: count, expanded } = entry
+      const type = typeName(entry.type)
+      const iconColor = icons.colors[type]
+      const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 2).join('')
+      return h('div.relative.result-row.my2', [
+        h('div.hover-parent', {
+          on: {
+            click: () => {
+              entry.expanded = !entry.expanded
+              if (entry.expanded && !entry.subdata) {
+                page.fetchTypeList(entry)
+              } else {
+                page._render()
+              }
+            }
+          }
+        }, [
+          circleIcon(iconInitial, expanded, iconColor),
+          h('h4.inline-block.m0', {
+            style: {
+              paddingLeft: '32px'
+            }
+          }, [
+            type, ' · ', h('span.muted', [ count, ' total' ])
+          ])
+        ]),
+        showIf(entry.expanded, () => typeDataSection(page, entry))
+      ])
+    }))
+  ])
+}
+
+function typeDataSection (page, entry) {
+  const type = typeName(entry.type)
+  const iconColor = icons.colors[type]
+  console.log('entry.type, type, iconColor', entry.type, type, iconColor)
+  return h('div.mb2.pt1', {
+    style: {
+      paddingLeft: '32px'
+    }
+  }, [
+    h('span.circle-line', {
+      style: { background: iconColor }
+    }),
+    showIf(entry.loading, () => h('p.muted.my2', 'Loading...')),
+    showIf(entry.subdata, () => dataTable(page, 'Objects', entry.subdata))
+  ])
+}
+
+function circleIcon (contents, isExpanded, background) {
+  return h('span.mr1.circle.inline-block', {
+    class: {
+      'hover-caret-up': isExpanded,
+      'hover-caret-down': !isExpanded
+    },
+    style: { background }
+  }, [
+    h('span.hover-hide', [contents]),
+    h('span.hover-arrow.hover-inline-block', isExpanded ? '−' : '+')
+  ])
+}
+
+function homologTable (page) {
+  return h('div', {
+    class: { faded: page.loading }
+  }, [
+    h('h2.mt3', 'Similar Genomes'),
+    h('table.table-lined', [
+      h('thead', [
+        h('tr', [
+          h('th', 'Distance'),
+          h('th', 'Name'),
+          h('th', 'Source')
+        ])
+      ]),
+      h('tbody', page.homologs.map(hom => {
+        const { kbase_id: kbaseid, dist, namespaceid, sciname, sourceid } = hom
+        const href = window._env.kbaseRoot + '/#dataview/' + kbaseid
+        return h('tr', [
+          h('td.bold', [
+            dist
+          ]),
+          h('td', [
+            h('a', { props: { href: href } }, sciname || sourceid)
+          ]),
+          h('td', [
+            namespaceid.replace(/_/g, ' ')
+          ])
+        ])
+      }))
+    ])
   ])
 }
 
 function dataTable (page, title, data) {
+  console.log('data', data)
   return h('div', {
     class: {
-      'muted': page.loading
+      faded: page.loading
     }
   }, [
-    sectionHeader(title, page.linkedCount + ' total'),
     h('table.table-lined', [
       h('thead', [
         h('tr', [
           h('th', 'Name'),
-          h('th', 'Type'),
+          h('th', 'Date'),
           h('th', 'Creator'),
           h('th', 'Narrative')
         ])
@@ -94,7 +216,7 @@ function dataTable (page, title, data) {
           h('td', [
             h('a', { props: { href: hrefs.obj } }, vertex.obj_name)
           ]),
-          h('td', typeName(vertex.ws_type)),
+          h('td', formatDate(vertex.save_date)),
           h('td', [
             h('a', { props: { href: hrefs.owner } }, vertex.owner)
           ]),
@@ -119,7 +241,7 @@ function noResults (page, msg, results) {
   ])
 }
 
-function sectionHeader (text, rightText) {
+function sectionHeader (text) {
   return h('div.my2.py1', [
     h('h2.inline-block.m0.h3', text),
     h('span.mx1.inline-block', ' · '),
@@ -158,12 +280,17 @@ function objHrefs (obj) {
   return hrefs
 }
 
+function formatDate (str) {
+  const date = new Date(str)
+  return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear()
+}
+
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false)
 window._env = {
   kbaseEndpoint: 'https://kbase.us/services',
   kbaseRoot: 'https://narrative.kbase.us',
-  sketchURL: 'https://kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service',
+  sketchURL: 'https://kbase.us/dynserv/1b054633a008e078cec1a20dfd6d118d53c31ed4.sketch-service',
   relEngURL: 'https://kbase.us/services/relation_engine_api',
   authToken: null
 }
@@ -193,7 +320,7 @@ window._messageHandlers = {
   setConfig: function ({ config }) {
     window._env = Object.assign(window._env, config)
     if (config.upa) {
-      document._page.fetchUpa(config.upa)
+      document._page.fetchUpa(config.upa.replace(/:/g, '/'))
     }
   }
 }
