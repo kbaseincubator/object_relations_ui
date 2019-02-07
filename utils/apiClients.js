@@ -1,30 +1,72 @@
-module.exports = { fetchLinkedObjs, fetchCopies, fetchHomologs, fetchObj }
+module.exports = { fetchLinkedObjs, fetchHomologs, fetchTypeCounts }
 
-// Fetch all linked and sub-linked data from an upa
-function fetchLinkedObjs (upa, token) {
-  upa = upa.replace(/\//g, ':')
+const linkedQuery = `
+WITH wsprov_object
+LET obj_id = CONCAT("wsprov_object/", @obj_key)
+FOR v, e, p IN 1..100
+    INBOUND obj_id wsprov_links, wsprov_copied_into
+    OPTIONS {uniqueVertices: "global", bfs: true}
+    FILTER (!@type || v.ws_type == @type)
+    FILTER (!@owners || v.owner IN @owners)
+    FILTER (@show_private && @show_public) ? (v.is_public || v.workspace_id IN @ws_ids) :
+        (!@show_private || v.workspace_id IN @ws_ids) && (!@show_public || v.is_public)
+    LIMIT @offset, @results_limit
+    RETURN {
+        vertex: {
+            _key: v._key,
+            is_public: v.is_public,
+            narr_name: v.narr_name,
+            obj_name: v.obj_name,
+            owner: v.owner,
+            save_date: v.save_date,
+            workspace_id: v.workspace_id,
+            ws_type: v.ws_type
+        },
+        path: {
+            edges: p.edges[*]._id,
+            verts: p.vertices[*]._id
+        }
+    }
+`
+
+function fetchLinkedObjs (key, type) {
   const payload = {
-    obj_key: upa,
+    query: linkedQuery,
+    obj_key: key,
+    owners: false,
+    type,
     show_private: true,
     show_public: true,
     offset: 0,
-    result_limit: 10,
-    types: false
+    results_limit: 30
   }
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects', batch_size: 10 })
+  const token = window._env.authToken
+  return aqlQuery(payload, token)
 }
 
-// Fetch all copies and linked objects of those copies from an upa
-function fetchCopies (upa, token, cb) {
+const typeCountsQuery = `
+WITH wsprov_object
+LET obj_id = CONCAT("wsprov_object/", @obj_key)
+FOR v, e, p in 1..100
+  INBOUND obj_id wsprov_links, wsprov_copied_into
+  OPTIONS {uniqueVertices: "global", bfs: true}
+  FILTER p.vertices[1].is_taxon != true
+  FILTER (@show_private && @show_public) ? (v.is_public || v.workspace_id IN @ws_ids) :
+      (!@show_private || v.workspace_id IN @ws_ids) && (!@show_public || v.is_public)
+  COLLECT type = v.ws_type with count into type_count
+  SORT type_count DESC
+  RETURN {type, type_count}
+`
+
+function fetchTypeCounts (key) {
   const payload = {
-    obj_key: upa.replace(/\//g, ':'),
-    show_private: true,
+    obj_key: key,
+    query: typeCountsQuery,
     show_public: true,
-    offset: 0,
-    types: false,
-    result_limit: 10
+    show_private: true
   }
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_copies', batch_size: 10 })
+  const token = window._env.authToken
+  return aqlQuery(payload, token)
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
@@ -33,10 +75,7 @@ function fetchHomologs (upa, token) {
   const url = window._env.sketchURL
   const payload = {
     method: 'get_homologs',
-    params: {
-      ws_ref: upa.replace(/:/g, '/'),
-      n_max_results: 100
-    }
+    params: { ws_ref: upa, n_max_results: 500 }
   }
   const headers = {}
   if (window._env.authToken) {
@@ -56,40 +95,6 @@ function fetchHomologs (upa, token) {
     })
 }
 
-/*
-// Fetch a random object to search on
-// We find an object that has at least 1 copy, so the data is somewhat interesting
-function fetchRandom () {
-  // actions.update({ loadingUpa: true })
-  function makeRequest (token) {
-    const query = (`
-      let ws_ids = @ws_ids
-      for e in wsprov_copied_into
-        sort rand()
-        limit 1
-        return e._from
-    `)
-    const payload = { query }
-    return aqlQuery(payload, token)
-  }
-  const token = window._env.authToken
-  makeRequest(token)
-    .then(result => {
-      const upa = result.replace('wsprov_object/', '').replace(/:/g, '/')
-      console.log('random upa:', upa)
-      // actions.update({ upa })
-    })
-    // .then(() => actions.update({ loadingUpa: false, error: null }))
-    .catch(err => { console.error(err) })
-}
-*/
-
-function fetchObj (upa, token) {
-  // Fetch info about an object
-  const payload = { obj_key: upa.replace(/\//g, ':') }
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_object' })
-}
-
 // Make a request to the relation engine api to do an ad-hoc admin query for prototyping
 function aqlQuery (payload, token, params) {
   const apiUrl = window._env.relEngURL.replace(/\/$/, '') // remove trailing slash
@@ -105,7 +110,7 @@ function aqlQuery (payload, token, params) {
   })
     .then(resp => resp.json())
     .then(json => {
-      if (json && json.results) return json.results
+      if (json && json.results) return json
       if (json && json.error) throw new Error(json.error)
     })
 }

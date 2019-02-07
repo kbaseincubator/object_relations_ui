@@ -1,129 +1,233 @@
-const { h, app } = require('hyperapp')
-const { fetchLinkedObjs, fetchCopies, fetchHomologs } = require('./utils/apiClients')
-const serialize = require('form-serialize')
+// npm
+const h = require('snabbdom/h').default
 
+// utils
 const icons = require('./utils/icons')
 const showIf = require('./utils/showIf')
-// const checkbox = require('./utils/checkbox')
-// const filterDropdown = require('./utils/filterDropdown')
+const { fetchHomologs, fetchTypeCounts, fetchLinkedObjs } = require('./utils/apiClients')
+const toObjKey = require('./utils/toObjKey')
+const toUpa = require('./utils/toUpa')
 
-/* TODO
-- convert to components
-- filter type dropdown ++
-- owner dropdown ++
-- public and private filters ++
-- ++ object aggregate details ("knowledge score") ++
-  - total number of copies and links regardless of perms
-- basic browser compat testing
-extras
-- sort nested related tables by column
-*/
+// components
+const Component = require('./components/Component')
+const UpaForm = require('./components/UpaForm')
 
-const state = { obj: {} }
-
-const actions = {
-  // Click an object to expand its link results
-  expandEntry: (entry) => (state, actions) => {
-    const upa = entry._key.replace(/:/g, '/')
-    entry.expanded = !entry.expanded
-    entry.loading = true
-    if (!entry.sublinks || !entry.sublinks.length) {
-      fetchLinkedObjs(upa, window._env.authToken)
-        .then(results => {
-          if (results) {
-            entry.sublinks = results
+function Page () {
+  return Component({
+    loading: 0,
+    obj: {}, // workspace object
+    upaForm: UpaForm(),
+    fetchUpa (upa) {
+      this.obj.upa = upa
+      this.loading = true
+      this._render()
+      const key = toObjKey(upa)
+      console.log('upa', upa)
+      this.loadingHomologs = true
+      fetchHomologs(upa)
+        .then(resp => {
+          this.loadingHomologs = false
+          if (resp && resp.length) {
+            this.homologs = resp
           } else {
-            entry.sublinks = []
+            this.homologs = null
           }
-          entry.loading = false
-          actions.update({})
+          this._render()
+        })
+      fetchTypeCounts(key, null)
+        .then(resp => {
+          if (resp.results && resp.results.length) {
+            this.typeCounts = resp.results
+          } else {
+            this.typeCounts = null
+          }
+          this.loading = false
+          this._render()
         })
         .catch(err => {
-          entry.loading = false
           console.error(err)
+          this.loading = false
+          this._render()
         })
-    }
-    actions.update({})
-  },
-  setObject: ({ upa }) => (state, actions) => {
-    upa = upa.replace(/\//g, ':') // replace '/' with ':' (arangodb stores colon as the delimiter)
-    const obj = { obj_name: 'Object ' + upa, upa }
-    actions.update({ obj, upa })
-    newSearch(state, actions, upa)
-  },
-  update: state => () => state
-}
-
-// Perform a full fetch on an object
-// This performs serveral fetches on a couple services
-function newSearch (state, actions, upa) {
-  // Reset all the state, clear out results
-  state.upa = upa
-  actions.update({
-    upa,
-    similarLinked: null,
-    similar: null,
-    copies: null,
-    links: null,
-    error: null,
-    loadingCopies: true,
-    loadingLinks: true
+    },
+    fetchTypeList (entry) {
+      const { type } = entry
+      entry.loading = true
+      this._render()
+      fetchLinkedObjs(toObjKey(this.obj.upa), type)
+        .then(resp => {
+          entry.subdata = null
+          if (resp.results) {
+            entry.subdata = resp.results
+          } else if (resp.error) {
+            console.error(resp.error)
+          } else {
+          }
+          entry.loading = false
+          console.log('resp', resp)
+          this._render()
+        })
+        .catch(err => {
+          console.error(err)
+          entry.loading = false
+          this._render()
+        })
+    },
+    view
   })
-  function logError (err) {
-    console.log(err)
-    console.trace()
-  }
-  // Fetch all objects linked by reference or by provenance
-  fetchLinkedObjs(state.upa, window._env.authToken)
-    .then(results => {
-      console.log('linked results', results)
-      // Get an object of type names for filtering these results
-      if (results) {
-        actions.update({ links: results })
-      }
-      actions.update({ loadingLinks: false })
-    })
-    .catch(err => {
-      actions.update({ error: String(err), loadingLinks: false })
-      logError(err)
-    })
-  // Fetch all copies of this object, either upstream or downstream
-  fetchCopies(state.upa)
-    .then(results => {
-      console.log('copy results', results)
-      // Get an object of type names for filtering these results
-      if (results) {
-        actions.update({ copies: results })
-      }
-      actions.update({ loadingCopies: false })
-    })
-    .catch(err => {
-      actions.update({ error: String(err), loadingCopies: false })
-      logError(err)
-    })
-  // Do an assembly homology search on the object, then fetch all linked objects for each search result
-  actions.update({ searching: true })
-  fetchHomologs(state.upa)
-    .then(results => {
-      console.log('homology results', results)
-      actions.update({ searching: false })
-      if (!results || !results.length) return
-      actions.update({ similar: results })
-    })
-    .catch(err => {
-      actions.update({ error: String(err), searching: false })
-      logError(err)
-    })
 }
 
-/*
-// Check whether an object is an assembly, genome, or reads, meaning it is
-// searchable by the AssemblyHomologyService
-function searchableWithHomology (obj) {
-  const validTypes = ['PairedEndLibrary', 'SingleEndLibrary', 'Genome', 'Assembly', 'ContigSet']
-  return obj.ws_type && validTypes.filter(t => RegExp(t).test(obj.ws_type)).length
+function view () {
+  const page = this
+  window._page = page
+  const div = content => h('div.container.p2.max-width-3', content)
+  return div([
+    page.upaForm.view(),
+    showIf(page.loading, () => h('p.muted', 'Loading...')),
+    showIf(page.error, () => h('p.error', page.error)),
+    showIf(page.typeCounts, () => typeHeaders(page)),
+    showIf(!page.loading && page.loadingHomologs, () => h('p.muted', 'Loading similar data...')),
+    showIf(page.homologs, () => homologTable(page)),
+    showIf(!page.loading && !page.loadingHomologs && !page.typeCounts && !page.homologs, () =>
+      h('p.muted', 'No results found')
+    )
+  ])
 }
-*/
+
+function typeHeaders (page) {
+  return h('div', {
+    class: { faded: page.loading }
+  }, [
+    h('h2', 'Linked Data'),
+    h('div', page.typeCounts.map(entry => {
+      const { type_count: count, expanded } = entry
+      const type = typeName(entry.type)
+      const iconColor = icons.colors[type]
+      const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 2).join('')
+      return h('div.relative.result-row.my2', [
+        h('div.hover-parent', {
+          on: {
+            click: () => {
+              entry.expanded = !entry.expanded
+              if (entry.expanded && !entry.subdata) {
+                page.fetchTypeList(entry)
+              } else {
+                page._render()
+              }
+            }
+          }
+        }, [
+          circleIcon(iconInitial, expanded, iconColor),
+          h('h4.inline-block.m0', {
+            style: {
+              paddingLeft: '32px'
+            }
+          }, [
+            type, ' · ', h('span.muted', [ count, ' total' ])
+          ])
+        ]),
+        showIf(entry.expanded, () => typeDataSection(page, entry))
+      ])
+    }))
+  ])
+}
+
+function typeDataSection (page, entry) {
+  const type = typeName(entry.type)
+  const iconColor = icons.colors[type]
+  console.log('entry.type, type, iconColor', entry.type, type, iconColor)
+  return h('div.mb2.pt1', {
+    style: {
+      paddingLeft: '32px'
+    }
+  }, [
+    h('span.circle-line', {
+      style: { background: iconColor }
+    }),
+    showIf(entry.loading, () => h('p.muted.my2', 'Loading...')),
+    showIf(entry.subdata, () => dataTable(page, 'Objects', entry.subdata))
+  ])
+}
+
+function circleIcon (contents, isExpanded, background) {
+  return h('span.mr1.circle.inline-block', {
+    class: {
+      'hover-caret-up': isExpanded,
+      'hover-caret-down': !isExpanded
+    },
+    style: { background }
+  }, [
+    h('span.hover-hide', [contents]),
+    h('span.hover-arrow.hover-inline-block', isExpanded ? '−' : '+')
+  ])
+}
+
+function homologTable (page) {
+  return h('div', {
+    class: { faded: page.loading }
+  }, [
+    h('h2.mt3', 'Similar Genomes'),
+    h('table.table-lined', [
+      h('thead', [
+        h('tr', [
+          h('th', 'Distance'),
+          h('th', 'Name'),
+          h('th', 'Source')
+        ])
+      ]),
+      h('tbody', page.homologs.map(hom => {
+        const { kbase_id: kbaseid, dist, namespaceid, sciname, sourceid } = hom
+        const href = window._env.kbaseRoot + '/#dataview/' + kbaseid
+        return h('tr', [
+          h('td.bold', [
+            dist
+          ]),
+          h('td', [
+            h('a', { props: { href: href } }, sciname || sourceid)
+          ]),
+          h('td', [
+            namespaceid.replace(/_/g, ' ')
+          ])
+        ])
+      }))
+    ])
+  ])
+}
+
+function dataTable (page, title, data) {
+  console.log('data', data)
+  return h('div', {
+    class: {
+      faded: page.loading
+    }
+  }, [
+    h('table.table-lined', [
+      h('thead', [
+        h('tr', [
+          h('th', 'Name'),
+          h('th', 'Date'),
+          h('th', 'Creator'),
+          h('th', 'Narrative')
+        ])
+      ]),
+      h('tbody', data.map(({ path, vertex }) => {
+        const hrefs = objHrefs(vertex)
+        return h('tr', [
+          h('td', [
+            h('a', { props: { href: hrefs.obj } }, vertex.obj_name)
+          ]),
+          h('td', formatDate(vertex.save_date)),
+          h('td', [
+            h('a', { props: { href: hrefs.owner } }, vertex.owner)
+          ]),
+          h('td', [
+            h('a', { props: { href: hrefs.narrative } }, vertex.narr_name)
+          ])
+        ])
+      }))
+    ])
+  ])
+}
 
 // Convert something like "Module.Type-5.0" into just "Type"
 // Returns the input if we cannot match the format
@@ -135,476 +239,47 @@ function typeName (typeStr) {
 
 // Generate KBase url links for an object
 function objHrefs (obj) {
-  const rootURL = window._env.rootURL
-  const dataview = rootURL + '/#dataview/'
-  const typeURL = rootURL + '/#spec/type/'
+  const url = window._env.kbaseRoot
+  const dataview = url + '/#dataview/'
+  const typeUrl = url + '/#spec/type/'
   const hrefs = {}
   if (obj.ws_type) {
-    hrefs.type = typeURL + obj.ws_type
+    hrefs.type = typeUrl + obj.ws_type
   }
   if (obj.upa) {
     hrefs.obj = dataview + obj.upa
   } else if (obj._key) {
-    hrefs.obj = dataview + obj._key.replace(/:/g, '/')
+    hrefs.obj = dataview + toUpa(obj._key)
   }
   if (obj.workspace_id) {
-    hrefs.narrative = rootURL + '/narrative/' + obj.workspace_id
+    hrefs.narrative = `https://narrative.kbase.us/narrative/ws.${obj.workspace_id}.obj.1`
   }
   if (obj.owner) {
-    hrefs.owner = rootURL + '/#people/' + obj.owner
+    hrefs.owner = url + '/#people/' + obj.owner
   }
   return hrefs
 }
 
-// Top-level view function
-function view (state, actions) {
-  window.state = state // for debugging
-  const formElem = showIf(window.location.search === '?form', () => form(state, actions))
-  // No results found for this object -- show a simple message
-  if (!state.loadingCopies && !state.loadingLinks && !state.links && !state.copies) {
-    return h('div', {class: 'container p2 dropdown'}, [
-      formElem,
-      h('p', {}, 'No results found.')
-    ])
-  }
-  return h('div', {class: 'container p2 max-width-3'}, [
-    formElem,
-    showIf(state.error, h('p', { class: 'error' }, state.error)),
-    // objInfo(state, actions),
-    // h('p', {}, [h('strong', {}, '47'), ' total related objects']),
-    linkedObjsSection(state, actions),
-    copyObjsSection(state, actions),
-    similarData(state, actions)
-  ])
-}
-
-function form (state, actions) {
-  return h('form', {
-    class: 'mb3',
-    onsubmit: ev => {
-      ev.preventDefault()
-      const formData = serialize(ev.currentTarget, { hash: true })
-      window._messageHandlers.setConfig({
-        config: {
-          kbaseEndpoint: formData.endpoint,
-          authToken: formData.token,
-          upa: formData.upa
-        }
-      })
-    }
-  }, [
-    h('fieldset', {class: 'inline-block mr2'}, [
-      h('label', {class: 'block mb2 bold'}, 'KBase endpoint'),
-      h('input', {
-        class: 'input p1',
-        required: true,
-        type: 'text',
-        name: 'endpoint',
-        value: window._env.kbaseEndpoint
-      })
-    ]),
-    h('fieldset', {class: 'inline-block mr2'}, [
-      h('label', {class: 'block mb2 bold'}, 'Auth token'),
-      h('input', {
-        class: 'input p1',
-        type: 'password',
-        name: 'token',
-        value: window._env.authToken
-      })
-    ]),
-    h('fieldset', {class: 'inline-block'}, [
-      h('label', {class: 'block mb2 bold'}, 'Object address'),
-      h('input', {
-        placeholder: '1/2/3',
-        class: 'input p1',
-        required: true,
-        type: 'text',
-        name: 'upa',
-        value: state.upa
-      })
-    ]),
-    h('fieldset', {class: 'clearfix col-12 pt2'}, [
-      h('button', {class: 'btn', type: 'submit'}, 'Submit')
-    ])
-  ])
-}
-
-function formatDate (date) {
+function formatDate (str) {
+  const date = new Date(str)
   return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear()
 }
-
-/*
-// Generic object info view
-function objInfo (state, actions) {
-  const obj = state.obj
-  if (!obj) return ''
-  const hrefs = objHrefs(obj)
-  const title = h('h2', {class: 'my0 inline-block'}, [
-    h('a', { href: hrefs.obj, target: '_blank', class: 'bold' }, [
-      obj.obj_name,
-      showIf(state.obj.ws_type, () => ' (' + typeName(state.obj.ws_type) + ')')
-    ])
-  ])
-  const body = h('p', {}, [
-    showIf(
-      obj.narr_name,
-      () => h('span', {}, [
-        'In narrative ',
-        h('a', { href: hrefs.narrative, target: '_blank' }, [ obj.narr_name ])
-      ])
-    ),
-    showIf(
-      obj.owner,
-      () => h('span', {}, [
-        ' by ',
-        h('a', { href: hrefs.owner, target: '_blank' }, [ obj.owner ])
-      ])
-    )
-  ])
-  return h('div', {class: 'mt3'}, [
-    h('div', {}, [
-      backButton(state, actions),
-      title
-    ]),
-    body
-  ])
-}
-*/
-
-// Section of linked objects -- "Linked data"
-function linkedObjsSection (state, actions) {
-  if (state.loadingLinks) {
-    return h('div', {}, [
-      header('Linked Data', 'Loading...'),
-      loadingBoxes()
-    ])
-    // return h('p', {class: 'muted bold'}, 'Loading related data...')
-  }
-  if (!state.links || !state.links.length) {
-    return h('p', {class: 'muted'}, 'There are no objects linked to this one.')
-  }
-  const links = state.links
-  return h('div', {}, [
-    header('Linked Data', links.length + ' total'),
-    /*
-    filterTools({
-      list: links,
-      types: state.linkTypes,
-      listName: 'links'
-    }, state, actions),
-    */
-    h('div', {}, links.map(link => {
-      // Subtitle text under the header for each link result
-      const subText = [typeName(link.ws_type), link.owner]
-      return dataSection(link, subText, state, actions)
-    }))
-  ])
-}
-
-// Copied objects section
-function copyObjsSection (state, actions) {
-  if (state.loadingCopies) {
-    return h('div', {}, [
-      header('Copies', 'Loading...'),
-      loadingBoxes()
-    ])
-  }
-  if (!state.copies || !state.copies.length) {
-    return h('p', {class: 'muted no-results'}, 'There are no copies of this object.')
-  }
-  const copies = state.copies
-  // const sublinks = state.copies.sublinks
-  return h('div', {class: 'clearfix mt2'}, [
-    header('Copies', copies.length + ' total'),
-    /*
-    filterTools({
-      list: copies,
-      types: state.copyTypes,
-      listName: 'copies'
-    }, state, actions),
-    */
-    h('div', {}, copies.map(copy => {
-      // Subtitle text under the header for each link result
-      const subText = [typeName(copy.ws_type), copy.owner]
-      return dataSection(copy, subText, state, actions)
-    }))
-  ])
-}
-
-// Similar data section (search results from the assembly homology service)
-function similarData (state, actions) {
-  if (state.searching) {
-    return h('div', {}, [
-      header('Similar Data', 'Loading...'),
-      loadingBoxes()
-    ])
-  }
-  if (!state.similar || !state.similar.length) return ''
-  return h('div', { class: 'clearfix mt2' }, [
-    header('Similar data', state.similar.length + ' total'),
-    h('div', {}, state.similar.map(entry => {
-      const readableNS = entry.namespaceid.replace('_', ' ')
-      let distance
-      if (entry.dist === 0) {
-        distance = 'exact match'
-      } else {
-        distance = entry.dist + ' distance'
-      }
-      const subText = [distance, readableNS]
-      entry.ws_type = 'Assembly' // TODO check for other types somehow
-      entry.obj_name = entry.sciname || entry.sourceid
-      if (entry.kbase_id) {
-        entry._key = entry.kbase_id.replace(/\//g, ':')
-      }
-      return dataSection(entry, subText, state, actions)
-    }))
-  ])
-}
-
-// Section of parent data, with circle icon
-// You can pass in some subtext (array of strings), which goes below the main title
-function dataSection (entry, subText, state, actions) {
-  if (entry.hidden) return ''
-  const hrefs = objHrefs(entry)
-  // sublinks = sublinks.filter(l => l.parent_id === entry._id)
-  const entryName = entry.obj_name
-  const type = typeName(entry.ws_type)
-  const iconColor = icons.colors[type]
-  const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 2).join('')
-  return h('div', {}, [
-    h('div', {
-      class: 'h3-5 mt1 clearfix relative result-row hover-parent',
-      style: {'whiteSpace': 'nowrap'},
-      onclick: ev => {
-        if (entry._key) actions.expandEntry(entry)
-      }
-    }, [
-      showIf(entry.expanded, () => h('span', { style: { background: iconColor }, class: 'circle-line' })),
-      h('span', {
-        class: `mr1 circle inline-block ${entry.expanded ? 'hover-caret-up' : 'hover-caret-down'}`,
-        style: { background: iconColor }
-      }, [
-        h('span', { class: 'hover-hide' }, [iconInitial]),
-        h('span', { class: 'hover-arrow hover-inline-block' }, entry.expanded ? '-' : '+')
-      ]),
-      h('h4', { class: 'm0 p0 bold', style: { paddingLeft: '32px' } }, [
-        entryName,
-        showIf(!entry.expanded, () => h('span', { class: 'caret-up' })),
-        showIf(entry.expanded, () => h('span', { class: 'caret-down' }))
-      ]),
-      h('span', {
-        class: 'block bold muted h0-5',
-        style: {
-          paddingLeft: '32px',
-          fontSize: '0.85rem',
-          paddingTop: '2px'
-        }
-      }, subText.join(' · '))
-    ]),
-    // - Narrative name and link
-    // - Author name and link
-    // - Save date
-    showIf(entry.expanded, () => h('div', {
-      class: 'relative mb1 mt1',
-      style: { paddingLeft: '32px' }
-    }, [
-      h('span', {
-        class: 'circle-line',
-        style: { top: '-0.5rem', background: iconColor }
-      }),
-      h('div', {style: {marginBottom: '0.15rem'}}, [
-        h('a', {href: hrefs.obj, target: '_blank'}, 'Full details'),
-        showIf(entry.save_date, () =>
-          h('div', { class: 'my1' }, [
-            'Created on ',
-            formatDate(new Date(entry.save_date)),
-            ' by ',
-            h('a', {href: hrefs.owner, target: '_blank'}, entry.owner),
-            ' in the narrative ',
-            h('a', {href: hrefs.narrative, target: '_blank'}, entry.narr_name)
-          ])
-        )
-      ]),
-      showIf(entry.loading && !(entry.sublinks && entry.sublinks.length), () => h('div', {}, [
-        h('p', {class: 'bold my1 muted'}, 'Loading related objects...'),
-        loadingTable()
-      ])),
-      showIf(
-        entry.sublinks && entry.sublinks.length === 0,
-        () => h('div', { class: 'muted' }, 'No further related data found.')
-      ),
-      showIf(entry.sublinks && entry.sublinks.length, () => h('div', {}, [
-        h('h4', {class: 'bold my1 muted'}, entry.sublinks.length + ' Related Objects'),
-        h('table', {
-          class: 'table-lined'
-        }, [
-          h('thead', {}, [
-            h('tr', {}, [
-              h('th', {}, [ 'Object' ]),
-              h('th', {}, [ 'Type' ]),
-              h('th', {}, [ 'Narrative' ]),
-              h('th', {}, [ 'Author' ])
-            ])
-          ]),
-          h('tbody', {},
-            entry.sublinks.map(subentry => subDataSection(subentry, entry, state, actions))
-          )
-        ])
-      ]))
-    ]))
-  ])
-}
-
-// Section of sublinked objects with little graph lines
-function subDataSection (subentry, entry, state, actions) {
-  const hrefs = objHrefs(subentry)
-  return h('tr', { class: 'semi-muted' }, [
-    h('td', {}, [
-      h('a', { href: hrefs.obj, target: '_blank' }, subentry.obj_name)
-    ]),
-    h('td', {}, [ typeName(subentry.ws_type) ]),
-    h('td', {}, [
-      h('a', { href: hrefs.narrative, target: '_blank' }, subentry.narr_name)
-    ]),
-    h('td', {}, [
-      h('a', { href: hrefs.owner, target: '_blank' }, subentry.owner)
-    ])
-  ])
-}
-
-/*
-// Filter results
-// `listName` should be one of 'links', 'copies', or 'similar'
-// `types` should be a list of types to filter on (eg. state.linkTypes)
-// `list` should be a list of objects (eg. state.links)
-function filterTools ({types, list, listName}, state, actions) {
-  const typeFilter = h('button', {
-    class: 'btn'
-  }, 'Type')
-  const ownerFilter = h('button', { class: 'ml1 btn' }, 'Owner')
-  const typeFilter = filterDropdown({
-    id: 'filter-dropdown-' + listName,
-    text: 'Type',
-    onchange: (filters) => {
-      actions.applyFilters(filters)
-    },
-    options: types || []
-  }, state, actions)
-  // Set default state for some of the elements in here
-  // const privCheckboxPath = [listName, 'filter-checkbox-private']
-  // const pubCheckboxPath = [listName, 'filter-checkbox-public']
-  // const privCheckbox = scope({
-  //   scope: [listName, 'checkbox-private'],
-  //   state,
-  //   actions,
-  //   defaults: { text: 'Private', name: 'Private', checked: true }
-  // })
-  // setDefault(privCheckboxPath, checkbox.create)
-  // setDefault(pubCheckboxPath, checkbox.create)
-  return h('div', { class: 'pb1' }, [
-    h('span', {
-      class: 'inline-block mr1 align-middle'
-    }, 'Filter by '),
-    typeFilter,
-    ownerFilter,
-    // h('button', {class: 'btn mr2'}, 'Owner'),
-    h('span', { class: 'inline-block ml1 align-middle' }, [
-      h('input', { type: 'checkbox' }),
-      h('span', {}, 'Public')
-      // checkbox.view(scope(state, 'public-checkbox-' + listName), actions)
-    ]),
-    h('span', { class: 'inline-block ml2 align-middle' }, [
-      h('input', { type: 'checkbox' }),
-      h('span', {}, 'Private')
-      filterDropdown({
-        path: [listName, 'filter-type']
-      })
-      checkbox({
-        path: [listName, 'checkbox-private'],
-        defaults: { text: 'Private', name: 'Private', checked: true },
-        state,
-        actions,
-        onchange
-      })
-      checkbox({
-        id: 'checkbox-private-' + listName,
-        text: 'Private',
-        name: 'private',
-        checked: true
-      }, state, actions)
-    ])
-  ])
-}
-*/
-
-// Section header
-function header (text, rightText) {
-  return h('div', {class: 'my2 py1 border-bottom'}, [
-    h('h2', {class: 'inline-block m0 h3'}, text),
-    h('span', {class: 'right inline-block'}, [rightText])
-  ])
-}
-
-function loadingBoxes () {
-  const background = '#eee'
-  const row = () => {
-    return h('div', { class: 'mt2' }, [
-      h('div', {
-        class: 'inline-block',
-        style: {
-          width: '30px',
-          height: '30px',
-          borderRadius: '40px',
-          background
-        }
-      }),
-      h('div', {
-        class: 'inline-block ml2',
-        style: {
-          width: '300px',
-          height: '30px',
-          background
-        }
-      })
-    ])
-  }
-  return h('div', {}, [ row(), row(), row(), row() ])
-}
-
-function loadingTable () {
-  const background = '#eee'
-  const td = () => {
-    return h('td', {
-      class: 'inline-block mr2 mb2',
-      style: {
-        height: '20px',
-        width: '200px',
-        background
-      }
-    })
-  }
-  const row = () => {
-    return h('tr', {}, [ td(), td(), td() ])
-  }
-  return h('table', {}, [
-    row(), row(), row()
-  ])
-}
-
-// Render to the page
-const container = document.querySelector('#hyperapp-container')
-const appActions = app(state, actions, view, container)
-window.appActions = appActions
 
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false)
 // Default app config -- overridden by postMessage handlers further below
 window._env = {
   kbaseEndpoint: 'https://kbase.us/services',
-  sketchURL: 'https://kbase.us/dynserv/deac1a3ee9f55f5a229ddb61875cd0b98f5d1987.sketch-service',
+  kbaseRoot: 'https://narrative.kbase.us',
+  sketchURL: 'https://kbase.us/dynserv/1b054633a008e078cec1a20dfd6d118d53c31ed4.sketch-service',
   relEngURL: 'https://kbase.us/services/relation_engine_api',
   authToken: null
 }
+
+// Initialize the Page component
+document._page = Page()
+
+// Receive JSON data in a post message
 function receiveMessage (ev) {
   let data
   try {
@@ -621,13 +296,15 @@ function receiveMessage (ev) {
   window._messageHandlers[data.method](data.params)
 }
 
-// Set the app configuration data
+// Handle post message methods
 window._messageHandlers = {
   setConfig: function ({ config }) {
-    if (typeof config !== 'object') return
     window._env = Object.assign(window._env, config)
     if (config.upa) {
-      appActions.setObject({ upa: config.upa })
+      document._page.fetchUpa(config.upa.replace(/:/g, '/'))
     }
   }
 }
+
+// -- Render the page component
+document.body.appendChild(document._page._render().elm)
