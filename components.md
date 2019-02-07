@@ -1,29 +1,32 @@
 # UI components
 
-This app uses [snabbdom]() with a very minimalistic component system
+This app uses [snabbdom](https://github.com/snabbdom/snabbdom) with a very minimalistic component system
 
 ## Create a component
 
-Components are just collections of values and functions with a view
+Components are just collections of values and functions with a view.
 
-The view is a function that returns some snabbdom nodes
+The view is a function that returns some snabbdom nodes.
 
-Values can be used as data in the view, while functions can update the component and re-render the view
+Values can be used as data in the view, while functions can update the component and re-render the view.
 
 ```js
 function Checkbox ({ checked }) {
   return Component({
     checked,
-    toggle: (C) => { C.checked = !C.checked },
-    view: (C, text) => {
+    toggle () {
+      this.checked = !this.checked
+      this._render()
+    },
+    view (text) {
       return h('fieldset', [
         h('label', text),
         h('input', {
-          type: 'checkbox',
-          checked: C.checked,
-          on: {
-            change: () => C.toggle()
-          }
+          props: {
+            type: 'checkbox',
+            checked: this.checked,
+          },
+          on: { change: () => this.toggle() }
         })
       ])
     }
@@ -31,15 +34,9 @@ function Checkbox ({ checked }) {
 }
 ```
 
-You may find it a little concerning to mutate state in the functions. Lay your fears aside.
-
 ## Update state and re-render
 
-Simply call any function in the state, and the view will re-render
-
-```js
-myComponent.myMethod(args...)
-```
+After changing some state for a component, call `component._render()` to update it in the DOM.
 
 ## Embed a child component in a parent
 
@@ -52,13 +49,14 @@ function DateTimeField ({ date, time, enabled }) {
   return Component({
     dateField: DateField({ date }),
     timeField: TimeField({ time }),
-    set_val: (C, date, time) => {
+    set_val: (date, time) => {
       // Maybe do some formatting, validations, and conversions on date and time
-      C.timeField.set(time)
-      C.dateField.set(date)
+      this.timeField.set(time)
+      this.dateField.set(date)
+      this._render()
     },
-    view: (component) => {
-      return h('fieldset', [ component.timeField, component.dateField, /* etc */ ])
+    view: () => {
+      return h('fieldset', [ this.timeField.view(), this.dateField.view(), /* etc */ ])
     }
   })
 }
@@ -69,5 +67,5 @@ function DateTimeField ({ date, time, enabled }) {
 You can access any component's plain dom node and append it to an element on the page with:
 
 ```js
-document.body.appendChild(myComponent._vnode.elm)
+document.body.appendChild(MyComponent().view().elm)
 ```
