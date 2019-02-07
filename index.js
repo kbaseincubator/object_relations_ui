@@ -136,7 +136,7 @@ function typeDataSection (page, entry) {
   const type = typeName(entry.type)
   const iconColor = icons.colors[type]
   console.log('entry.type, type, iconColor', entry.type, type, iconColor)
-  return h('div.mb2.pt1', {
+  return h('div.mb2.pt1.clearfix', {
     style: {
       paddingLeft: '32px'
     }
