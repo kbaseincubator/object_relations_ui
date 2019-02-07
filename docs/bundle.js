@@ -1,128 +1,301 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+// Use all useful snabbdom modules
+var patch = require('snabbdom').init([require('snabbdom/modules/props').default, require('snabbdom/modules/style').default, require('snabbdom/modules/class').default, require('snabbdom/modules/eventlisteners').default, require('snabbdom/modules/dataset').default, require('snabbdom/modules/attributes').default]);
+var h = require('snabbdom/h').default;
 
-var _require = require('hyperapp'),
-    h = _require.h,
-    app = _require.app;
+module.exports = Component;
 
-// Get the url query string as an object
+// Create simple UI components. Docs are in ../components.md
+function Component(obj) {
+  var view = obj.view;
+  obj._viewArgs = [];
+  obj._vnode = patch(document.createElement('div'), h('div'));
+  obj._render = function () {
+    var newVnode = patch(obj._vnode, view.apply(obj, obj._viewArgs));
+    // Do some efficient subtree patching
+    for (var prop in newVnode) {
+      obj._vnode[prop] = newVnode[prop];
+    }
+    return obj._vnode;
+  };
+  obj.view = function () {
+    obj._viewArgs = arguments;
+    return obj._render();
+  };
+  return obj;
+}
+},{"snabbdom":14,"snabbdom/h":5,"snabbdom/modules/attributes":8,"snabbdom/modules/class":9,"snabbdom/modules/dataset":10,"snabbdom/modules/eventlisteners":11,"snabbdom/modules/props":12,"snabbdom/modules/style":13}],2:[function(require,module,exports){
+var serialize = require('form-serialize');
+var h = require('snabbdom/h').default;
+var Component = require('./Component');
 
+// Form for manually submitting auth/endpoint/upa
 
-var query = window.location.search.slice(1).split('&').map(function (s) {
-  return s.split('=');
-}).map(function (_ref) {
-  var _ref2 = _slicedToArray(_ref, 2),
-      key = _ref2[0],
-      val = _ref2[1];
+module.exports = UpaForm;
 
-  return [key, decodeURIComponent(val).replace(/['"]/g, '')];
-}).reduce(function (obj, _ref3) {
-  var _ref4 = _slicedToArray(_ref3, 2),
-      key = _ref4[0],
-      val = _ref4[1];
-
-  obj[key] = val;return obj;
-}, {});
-
-var state = { navHistory: [], obj: {}
-
-  // We just use actions.update for everything to keep it simple
-};var actions = {
-  followLink: function (_ref5) {
-    var name = _ref5.name,
-        upa = _ref5.upa;
-    return function (state, actions) {
-      var navHistory = state.navHistory || [];
-      actions.setObject({ name: name, upa: upa });
-      navHistory.push({ name: name, upa: state.upa });
-      actions.update({ navHistory: navHistory });
-    };
-  },
-  setObject: function (_ref6) {
-    var name = _ref6.name,
-        upa = _ref6.upa;
-    return function (state, actions) {
-      // window.history.pushState(null, '', '?upa=' + upa + '&name=' + name)
-      var obj = { obj_name: name, upa: upa };
-      actions.update({ obj: obj, upa: upa });
-      newSearch(state, actions, upa);
-    };
-  },
-  update: function (state) {
-    return function () {
-      return state;
-    };
+function UpaForm() {
+  var data = {
+    kbaseEndpoint: window._env.kbaseEndpoint,
+    authToken: window._env.authToken
+  };
+  if (document.location.search === '?form' && window.localStorage.upaFormData) {
+    try {
+      data = JSON.parse(window.localStorage.upaFormData);
+    } catch (e) {
+      console.error('Error loading upaFormData', e);
+      window.localStorage.removeItem('upaFormData');
+    }
   }
+  return Component({ data: data, view: view });
+}
 
-  // Perform a full fetch on an object
-  // This performs serveral fetches on a couple services
-};function newSearch(state, actions, upa) {
-  // Reset all the state, clear out results
-  state.upa = upa;
-  actions.update({
-    upa: upa,
-    similarLinked: null,
-    similar: null,
-    copies: null,
-    links: null,
-    error: null,
-    loadingCopies: true,
-    loadingLinks: true
+function view() {
+  var upaForm = this;
+  // Only show when ?form is in the url
+  if (document.location.search !== '?form') return h('div');
+  return h('form.mb3', {
+    on: {
+      submit: function (ev) {
+        ev.preventDefault();
+        var formData = serialize(ev.currentTarget, { hash: true });
+        window.localStorage.upaFormData = JSON.stringify(formData);
+        window._messageHandlers.setConfig({ config: formData });
+        upaForm.data = formData;
+        // TODO newSearch(state, actions, state.upa)
+      }
+    }
+  }, [h('fieldset.inline-block.mr2', [h('label.block.mb2.bold', 'KBase endpoint'), h('input.input.p1', {
+    props: {
+      required: true,
+      type: 'text',
+      name: 'kbaseEndpoint',
+      value: upaForm.data.kbaseEndpoint
+    }
+  })]), h('fieldset.inline-block.mr2', [h('label.block.mb2.bold', 'Auth token'), h('input.input.p1', {
+    props: {
+      type: 'password',
+      name: 'authToken',
+      value: upaForm.data.authToken
+    }
+  })]), h('fieldset.inline-block', [h('label.block.mb2.bold', 'Object address'), h('input.input.p1', {
+    props: {
+      placeholder: '1/2/3',
+      required: true,
+      type: 'text',
+      name: 'upa',
+      value: upaForm.data.upa
+    }
+  })]), h('fieldset.clearfix.col-12.pt2', [h('button.btn', { props: { type: 'submit' } }, 'Submit')])]);
+}
+},{"./Component":1,"form-serialize":4,"snabbdom/h":5}],3:[function(require,module,exports){
+// npm
+var h = require('snabbdom/h').default;
+
+// utils
+var icons = require('./utils/icons');
+var showIf = require('./utils/showIf');
+
+var _require = require('./utils/apiClients'),
+    fetchHomologs = _require.fetchHomologs,
+    fetchTypeCounts = _require.fetchTypeCounts,
+    fetchLinkedObjs = _require.fetchLinkedObjs;
+
+var toObjKey = require('./utils/toObjKey');
+var toUpa = require('./utils/toUpa');
+
+// components
+var Component = require('./components/Component');
+var UpaForm = require('./components/UpaForm');
+
+function Page() {
+  return Component({
+    loading: 0,
+    obj: {}, // workspace object
+    upaForm: UpaForm(),
+    fetchUpa: function (upa) {
+      var _this = this;
+
+      this.obj.upa = upa;
+      this.loading = true;
+      this._render();
+      var key = toObjKey(upa);
+      console.log('upa', upa);
+      this.loadingHomologs = true;
+      fetchHomologs(upa).then(function (resp) {
+        _this.loadingHomologs = false;
+        if (resp && resp.length) {
+          _this.homologs = resp;
+        } else {
+          _this.homologs = null;
+        }
+        _this._render();
+      });
+      fetchTypeCounts(key, null).then(function (resp) {
+        if (resp.results && resp.results.length) {
+          _this.typeCounts = resp.results;
+        } else {
+          _this.typeCounts = null;
+        }
+        _this.loading = false;
+        _this._render();
+      }).catch(function (err) {
+        console.error(err);
+        _this.loading = false;
+        _this._render();
+      });
+    },
+    fetchTypeList: function (entry) {
+      var _this2 = this;
+
+      var type = entry.type;
+
+      entry.loading = true;
+      fetchLinkedObjs(toObjKey(this.obj.upa), type).then(function (resp) {
+        entry.subdata = null;
+        if (resp.results) {
+          entry.subdata = resp.results;
+        } else if (resp.error) {
+          console.error(resp.error);
+        } else {}
+        entry.loading = false;
+        console.log('resp', resp);
+        _this2._render();
+      }).catch(function (err) {
+        console.error(err);
+        entry.loading = false;
+        _this2._render();
+      });
+      this._render();
+    },
+
+    view: view
   });
-  /*
-  fetchObj(state.upa, state.authToken)
-    .then(results => {
-      if (results) {
-        actions.update({ obj: results })
-      } else {
-        if (!state.obj || !state.obj_name) {
-          actions.update({ obj: { obj_name: 'Object ' + state.upa, upa: state.upa } })
+}
+
+function view() {
+  var page = this;
+  window._page = page;
+  var div = function (content) {
+    return h('div.container.p2.max-width-3', content);
+  };
+  return div([page.upaForm.view(), showIf(page.loading, function () {
+    return h('p.muted', 'Loading...');
+  }), showIf(page.error, function () {
+    return h('p.error', page.error);
+  }), showIf(page.typeCounts, function () {
+    return typeHeaders(page);
+  }), showIf(!page.loading && page.loadingHomologs, function () {
+    return h('p.muted', 'Loading similar data...');
+  }), showIf(page.homologs, function () {
+    return homologTable(page);
+  }), showIf(!page.loading && !page.loadingHomologs && !page.typeCounts && !page.homologs, function () {
+    return h('p.muted', 'No results found');
+  })]);
+}
+
+function typeHeaders(page) {
+  return h('div', {
+    class: { faded: page.loading }
+  }, [h('h2', 'Linked Data'), h('div', page.typeCounts.map(function (entry) {
+    var count = entry.type_count,
+        expanded = entry.expanded;
+
+    var type = typeName(entry.type);
+    var iconColor = icons.colors[type];
+    var iconInitial = type.split('').filter(function (c) {
+      return c === c.toUpperCase();
+    }).slice(0, 2).join('');
+    return h('div.relative.result-row.my2', [h('div.hover-parent', {
+      on: {
+        click: function () {
+          entry.expanded = !entry.expanded;
+          if (entry.expanded && !entry.subdata) {
+            page.fetchTypeList(entry);
+          } else {
+            page._render();
+          }
         }
       }
-      return fetchLinkedObjs(state.upa, state.authToken)
-    })
-    */
-  fetchLinkedObjs(state.upa).then(function (results) {
-    console.log('linked results', results);
-    actions.update({ links: results, loadingLinks: false });
-  }).catch(function (err) {
-    return actions.update({ error: String(err), loadingLinks: false });
-  });
-  fetchCopies(state.upa).then(function (results) {
-    console.log('copy results', results);
-    actions.update({ copies: results, loadingCopies: false });
-  }).catch(function (err) {
-    return actions.update({ error: String(err), loadingCopies: false });
-  });
-  actions.update({ searching: true });
-  fetchHomologs(state.upa).then(function (results) {
-    if (!results || !results.length) return;
-    console.log('homology results', results);
-    actions.update({ similar: results });
-    var kbaseResults = results.filter(function (r) {
-      return 'kbase_id' in r;
-    }).map(function (r) {
-      return r.kbase_id.replace(/\//g, ':');
-    });
-    console.log('kbase results', kbaseResults);
-    // TODO Find all linked objects for each results with a kbase_id
-    return fetchManyLinkedObjs(kbaseResults);
-  }).then(function (results) {
-    console.log('homology link results', results);
-    actions.update({ similarLinked: results, searching: false });
-  }).catch(function (err) {
-    return actions.update({ error: String(err), searching: false });
-  });
+    }, [circleIcon(iconInitial, expanded, iconColor), h('h4.inline-block.m0', {
+      style: {
+        paddingLeft: '32px'
+      }
+    }, [type, ' · ', h('span.muted', [count, ' total'])])]), showIf(entry.expanded, function () {
+      return typeDataSection(page, entry);
+    })]);
+  }))]);
 }
 
-/*
-// Check whether an object is an assembly, genome, or reads, meaning it is
-// searchable by the AssemblyHomologyService
-function searchableWithHomology (obj) {
-  const validTypes = ['PairedEndLibrary', 'SingleEndLibrary', 'Genome', 'Assembly', 'ContigSet']
-  return obj.ws_type && validTypes.filter(t => RegExp(t).test(obj.ws_type)).length
+function typeDataSection(page, entry) {
+  var type = typeName(entry.type);
+  var iconColor = icons.colors[type];
+  console.log('entry.type, type, iconColor', entry.type, type, iconColor);
+  return h('div.mb2.pt1', {
+    style: {
+      paddingLeft: '32px'
+    }
+  }, [h('span.circle-line', {
+    style: { background: iconColor }
+  }), showIf(entry.loading, function () {
+    return h('p.muted.my2', 'Loading...');
+  }), showIf(entry.subdata, function () {
+    return dataTable(page, 'Objects', entry.subdata);
+  })]);
 }
-*/
+
+function circleIcon(contents, isExpanded, background) {
+  return h('span.mr1.circle.inline-block', {
+    class: {
+      'hover-caret-up': isExpanded,
+      'hover-caret-down': !isExpanded
+    },
+    style: { background: background }
+  }, [h('span.hover-hide', [contents]), h('span.hover-arrow.hover-inline-block', isExpanded ? '−' : '+')]);
+}
+
+function homologTable(page) {
+  return h('div', {
+    class: { faded: page.loading }
+  }, [h('h2.mt3', 'Similar Genomes'), h('table.table-lined', [h('thead', [h('tr', [h('th', 'Distance'), h('th', 'Name'), h('th', 'Source')])]), h('tbody', page.homologs.map(function (hom) {
+    var kbaseid = hom.kbase_id,
+        dist = hom.dist,
+        namespaceid = hom.namespaceid,
+        sciname = hom.sciname,
+        sourceid = hom.sourceid;
+
+    var href = window._env.kbaseRoot + '/#dataview/' + kbaseid;
+    return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href } }, sciname || sourceid)]), h('td', [namespaceid.replace(/_/g, ' ')])]);
+  }))])]);
+}
+
+function dataTable(page, title, data) {
+  console.log('data', data);
+  return h('div', {
+    class: {
+      faded: page.loading
+    }
+  }, [h('table.table-lined', [h('thead', [h('tr', [h('th', 'Name'), h('th', 'Date'), h('th', 'Creator'), h('th', 'Narrative')])]), h('tbody', data.map(function (_ref) {
+    var path = _ref.path,
+        vertex = _ref.vertex;
+
+    var hrefs = objHrefs(vertex);
+    return h('tr', [h('td', [h('a', { props: { href: hrefs.obj } }, vertex.obj_name)]), h('td', formatDate(vertex.save_date)), h('td', [h('a', { props: { href: hrefs.owner } }, vertex.owner)]), h('td', [h('a', { props: { href: hrefs.narrative } }, vertex.narr_name)])]);
+  }))])]);
+}
+
+function noResults(page, msg, results) {
+  if (page.loading) return '';
+  if (results) return '';
+  return h('div.mt2', {
+    style: {
+      borderTop: '1px solid #ddd'
+    }
+  }, [h('p.muted', msg)]);
+}
+
+function sectionHeader(text) {
+  return h('div.my2.py1', [h('h2.inline-block.m0.h3', text), h('span.mx1.inline-block', ' · '), h('span.inline-block.muted', rightText)]);
+}
 
 // Convert something like "Module.Type-5.0" into just "Type"
 // Returns the input if we cannot match the format
@@ -132,439 +305,1237 @@ function typeName(typeStr) {
   return matches[1];
 }
 
-// Generate KBase linksf or an object
+// Generate KBase url links for an object
 function objHrefs(obj) {
-  var dataview = 'https://narrative.kbase.us/#dataview/';
+  var url = window._env.kbaseRoot;
+  var dataview = url + '/#dataview/';
+  var typeUrl = url + '/#spec/type/';
   var hrefs = {};
+  if (obj.ws_type) {
+    hrefs.type = typeUrl + obj.ws_type;
+  }
   if (obj.upa) {
     hrefs.obj = dataview + obj.upa;
   } else if (obj._key) {
-    hrefs.obj = dataview + obj._key.replace(/:/g, '/');
+    hrefs.obj = dataview + toUpa(obj._key);
   }
   if (obj.workspace_id) {
     hrefs.narrative = 'https://narrative.kbase.us/narrative/ws.' + obj.workspace_id + '.obj.1';
   }
   if (obj.owner) {
-    hrefs.owner = 'https://narrative.kbase.us/#people/' + obj.owner;
+    hrefs.owner = url + '/#people/' + obj.owner;
   }
   return hrefs;
 }
 
-// Top-level view function
-function view(state, actions) {
-  return h('div', { class: 'container p2 max-width-3' }, [
-  // h('h1', {class: 'mt0 mb3'}, 'Relation Engine Object Viewer'),
-  /*
-  h('form', {
-    onsubmit: ev => {
-      ev.preventDefault()
-      actions.update({ navHistory: [] })
-      newSearch(state, actions, state.upa)
+function formatDate(str) {
+  var date = new Date(str);
+  return date.getMonth() + 1 + '/' + date.getDate() + '/' + date.getFullYear();
+}
+
+// This UI is used in an iframe, so we receive post messages from a parent window
+window.addEventListener('message', receiveMessage, false);
+window._env = {
+  kbaseEndpoint: 'https://kbase.us/services',
+  kbaseRoot: 'https://narrative.kbase.us',
+  sketchURL: 'https://kbase.us/dynserv/1b054633a008e078cec1a20dfd6d118d53c31ed4.sketch-service',
+  relEngURL: 'https://kbase.us/services/relation_engine_api',
+  authToken: null
+
+  // Initialize the Page component
+};document._page = Page();
+
+// Receive JSON data in a post message
+function receiveMessage(ev) {
+  var data = void 0;
+  try {
+    data = JSON.parse(ev.data);
+  } catch (e) {
+    console.error(e);
+    return;
+  }
+  if (!(data.method in window._messageHandlers)) {
+    console.error('Unknown method: ' + data.method);
+    console.log('Docs: ' + 'https://github.com/kbaseincubator/object_relations_ui');
+    return;
+  }
+  window._messageHandlers[data.method](data.params);
+}
+
+// Handle post message methods
+window._messageHandlers = {
+  setConfig: function (_ref2) {
+    var config = _ref2.config;
+
+    window._env = Object.assign(window._env, config);
+    if (config.upa) {
+      document._page.fetchUpa(config.upa.replace(/:/g, '/'));
     }
-  }, [
-    h('fieldset', {class: 'col col-4'}, [
-      h('label', {class: 'block mb2 bold'}, 'KBase auth token (CI)'),
-      h('input', {
-        class: 'input p1',
-        required: true,
-        type: 'password',
-        name: 'token',
-        oninput: ev => {
-          actions.update({ authToken: ev.currentTarget.value })
-          return ev
-        },
-        value: state.authToken
-      })
-    ]),
-    h('fieldset', {class: 'col col-6'}, [
-      h('label', {class: 'block mb2 bold'}, 'Object Address (Prod)'),
-      h('input', {
-        placeholder: '1/2/3',
-        class: 'input p1',
-        required: true,
-        type: 'text',
-        name: 'upa',
-        input: ev => actions.update({ upa: ev.currentTarget.value }),
-        value: state.upa
-      }),
-      showIf(
-        state.authToken && !state.loadingUpa,
-        h('a', { class: 'btn ml2 h5', onclick: () => fetchRandom(state, actions) }, 'Get random ID')
-      ),
-      showIf(state.loadingUpa, h('p', { class: 'inline-block ml2 m0' }, 'Loading...'))
-    ]),
-    h('fieldset', {class: 'clearfix col-12 pt2'}, [
-      h('button', {disabled: !state.authToken, class: 'btn', type: 'submit'}, 'Submit'),
-      showIf(!state.authToken, h('p', { class: 'pl2 inline-block' }, 'Please enter an auth token first.'))
-    ])
-  ]),
-  */
-  showIf(state.error, h('p', { class: 'error' }, state.error)), breadcrumbNav(state, actions),
-  // backButton(state, actions),
-  // objInfo(state, actions),
-  linkedObjsSection(state, actions), copyObjsSection(state, actions), similarData(state, actions)]);
-}
+  }
 
-function breadcrumbNav(state, actions) {
-  if (!state.navHistory || !state.navHistory.length) return '';
-  var items = state.navHistory.map(function (item, idx) {
-    return h('li', {
-      class: 'inline-block breadcrumb'
-    }, [h('a', {
-      onclick: function () {
-        console.log('going back..');
-        var jumpTo = state.navHistory[idx];
-        actions.update({ navHistory: state.navHistory.slice(0, idx + 1) });
-        actions.setObject({ name: jumpTo.name, upa: jumpTo.upa });
-      }
-    }, item.name)]);
-  }).slice(Math.max(state.navHistory.length - 3, 0)); // Only take the last 3 items
-  return h('ul', {
-    class: 'm0 p0',
-    style: {
-      overflow: 'hidden',
-      whiteSpace: 'nowrap'
+  // TODO use this: const noTrailingSlash = str => str.replace(/\/$/, '')
+
+  // -- Render the page component
+};document.body.appendChild(document._page._render().elm);
+},{"./components/Component":1,"./components/UpaForm":2,"./utils/apiClients":17,"./utils/icons":18,"./utils/showIf":19,"./utils/toObjKey":20,"./utils/toUpa":21,"snabbdom/h":5}],4:[function(require,module,exports){
+// get successful control from form and assemble into object
+// http://www.w3.org/TR/html401/interact/forms.html#h-17.13.2
+
+// types which indicate a submit action and are not successful controls
+// these will be ignored
+var k_r_submitter = /^(?:submit|button|image|reset|file)$/i;
+
+// node names which could be successful controls
+var k_r_success_contrls = /^(?:input|select|textarea|keygen)/i;
+
+// Matches bracket notation.
+var brackets = /(\[[^\[\]]*\])/g;
+
+// serializes form fields
+// @param form MUST be an HTMLForm element
+// @param options is an optional argument to configure the serialization. Default output
+// with no options specified is a url encoded string
+//    - hash: [true | false] Configure the output type. If true, the output will
+//    be a js object.
+//    - serializer: [function] Optional serializer function to override the default one.
+//    The function takes 3 arguments (result, key, value) and should return new result
+//    hash and url encoded str serializers are provided with this module
+//    - disabled: [true | false]. If true serialize disabled fields.
+//    - empty: [true | false]. If true serialize empty fields
+function serialize(form, options) {
+    if (typeof options != 'object') {
+        options = { hash: !!options };
     }
-  }, items);
-}
-
-/*
-// Navigation back button
-function backButton (state, actions) {
-  console.log('nav history', state.navHistory)
-  if (!state.navHistory || !(state.navHistory.length > 1)) return ''
-  return h('button', {
-    class: 'btn inline-block mr2',
-    style: {
-      // Fix the vertical alignment with text next to it
-      position: 'relative',
-      top: '-2px'
-    },
-    onclick: () => {
-      const last = state.navHistory.pop()
-      state.upa = last.upa
-      actions.update({ navHistory: state.navHistory, upa: state.upa, obj: { obj_name: last.name, upa: last.upa } })
-      newSearch(state, actions, last.upa)
+    else if (options.hash === undefined) {
+        options.hash = true;
     }
-  }, '⬅ Back')
-}
-*/
 
-/*
-// Generic object info view
-function objInfo (state, actions) {
-  const obj = state.obj
-  if (!obj) return ''
-  const hrefs = objHrefs(obj)
-  const title = h('h2', {class: 'my0 inline-block'}, [
-    h('a', { href: hrefs.obj, target: '_blank', class: 'bold' }, [
-      obj.obj_name,
-      showIf(state.obj.ws_type, () => ' (' + typeName(state.obj.ws_type) + ')')
-    ])
-  ])
-  const body = h('p', {}, [
-    showIf(
-      obj.narr_name,
-      () => h('span', {}, [
-        'In narrative ',
-        h('a', { href: hrefs.narrative, target: '_blank' }, [ obj.narr_name ])
-      ])
-    ),
-    showIf(
-      obj.owner,
-      () => h('span', {}, [
-        ' by ',
-        h('a', { href: hrefs.owner, target: '_blank' }, [ obj.owner ])
-      ])
-    )
-  ])
-  return h('div', {class: 'mt3'}, [
-    h('div', {}, [
-      backButton(state, actions),
-      title
-    ]),
-    body
-  ])
-}
-*/
+    var result = (options.hash) ? {} : '';
+    var serializer = options.serializer || ((options.hash) ? hash_serializer : str_serialize);
 
-// A bit more readable ternary conditional for use in views
-// Display the vnode if the boolean is truthy
-function showIf(bool, vnode) {
-  if (bool) {
-    if (typeof vnode === 'function') return vnode();else return vnode;
-  }
-  return '';
-}
+    var elements = form && form.elements ? form.elements : [];
 
-// Section of linked objects -- "Linked data"
-function linkedObjsSection(state, actions) {
-  if (state.loadingLinks) {
-    return h('p', { class: 'muted bold' }, 'Loading related data...');
-  }
-  if (!state.links || !state.links.links.length) {
-    return h('p', { class: 'muted' }, 'There are no objects linked to this one.');
-  }
-  var links = state.links.links;
-  var sublinks = state.links.sublinks;
-  return h('div', { class: 'clearfix' }, [header('Linked data', links.length),
-  // filterTools(),
-  h('div', {}, links.map(function (l) {
-    return dataSection(sublinks, l, state, actions);
-  }))]);
-}
+    //Object store each radio and set if it's empty or not
+    var radio_store = Object.create(null);
 
-// Copied objects section
-function copyObjsSection(state, actions) {
-  if (state.loadingCopies) {
-    return h('p', { class: 'bold muted' }, 'Loading copies...');
-  }
-  if (!state.copies || !state.copies.copies.length) {
-    return h('p', { class: 'muted' }, 'There are no copies of this object.');
-  }
-  var copies = state.copies.copies;
-  var sublinks = state.copies.sublinks;
-  return h('div', { class: 'clearfix mt2' }, [header('Copies', copies.length),
-  // filterTools(),
-  h('div', {}, copies.map(function (c) {
-    return dataSection(sublinks, c, state, actions);
-  }))]);
-}
+    for (var i=0 ; i<elements.length ; ++i) {
+        var element = elements[i];
 
-// Similar data section (search results from the assembly homology service)
-function similarData(state, actions) {
-  if (state.searching) {
-    return h('p', {
-      class: 'muted bold'
-    }, 'Searching for similar data (can take up to 30 seconds)...');
-  }
-  if (!state.similar || !state.similar.length) return '';
-  return h('div', { class: 'clearfix mt2' }, [header('Similar data', state.similar.length), h('div', {}, state.similar.map(function (s) {
-    return similarObjSection(s, state, actions);
-  }))]);
-}
+        // ingore disabled fields
+        if ((!options.disabled && element.disabled) || !element.name) {
+            continue;
+        }
+        // ignore anyhting that is not considered a success field
+        if (!k_r_success_contrls.test(element.nodeName) ||
+            k_r_submitter.test(element.type)) {
+            continue;
+        }
 
-// Section for a single similar objects, with all sub-linked objects
-function similarObjSection(entry, state, actions) {
-  var distance = void 0;
-  if (entry.dist === 0) {
-    distance = [h('span', { class: 'bold' }, 'exact match')];
-  } else {
-    distance = [h('span', { class: 'bold' }, entry.dist), ' distance'];
-  }
-  var readableNS = entry.namespaceid.replace('_', ' ');
-  var entryName = entry.sciname || entry.sourceid;
-  return h('div', { class: 'clearfix py1' }, [h('div', { class: 'h3-5 mb1' }, [h('p', { class: 'semi-muted mb0-5 my0 h4' }, distance), h('span', { class: 'mr1 circle left' }, ''), h('div', { class: 'clearfix left' }, [h('a', {
-    onclick: function () {
-      var upa = entry.kbase_id;
-      actions.followLink({ name: entryName, upa: upa });
+        var key = element.name;
+        var val = element.value;
+
+        // we can't just use element.value for checkboxes cause some browsers lie to us
+        // they say "on" for value when the box isn't checked
+        if ((element.type === 'checkbox' || element.type === 'radio') && !element.checked) {
+            val = undefined;
+        }
+
+        // If we want empty elements
+        if (options.empty) {
+            // for checkbox
+            if (element.type === 'checkbox' && !element.checked) {
+                val = '';
+            }
+
+            // for radio
+            if (element.type === 'radio') {
+                if (!radio_store[element.name] && !element.checked) {
+                    radio_store[element.name] = false;
+                }
+                else if (element.checked) {
+                    radio_store[element.name] = true;
+                }
+            }
+
+            // if options empty is true, continue only if its radio
+            if (val == undefined && element.type == 'radio') {
+                continue;
+            }
+        }
+        else {
+            // value-less fields are ignored unless options.empty is true
+            if (!val) {
+                continue;
+            }
+        }
+
+        // multi select boxes
+        if (element.type === 'select-multiple') {
+            val = [];
+
+            var selectOptions = element.options;
+            var isSelectedOptions = false;
+            for (var j=0 ; j<selectOptions.length ; ++j) {
+                var option = selectOptions[j];
+                var allowedEmpty = options.empty && !option.value;
+                var hasValue = (option.value || allowedEmpty);
+                if (option.selected && hasValue) {
+                    isSelectedOptions = true;
+
+                    // If using a hash serializer be sure to add the
+                    // correct notation for an array in the multi-select
+                    // context. Here the name attribute on the select element
+                    // might be missing the trailing bracket pair. Both names
+                    // "foo" and "foo[]" should be arrays.
+                    if (options.hash && key.slice(key.length - 2) !== '[]') {
+                        result = serializer(result, key + '[]', option.value);
+                    }
+                    else {
+                        result = serializer(result, key, option.value);
+                    }
+                }
+            }
+
+            // Serialize if no selected options and options.empty is true
+            if (!isSelectedOptions && options.empty) {
+                result = serializer(result, key, '');
+            }
+
+            continue;
+        }
+
+        result = serializer(result, key, val);
     }
-  }, entryName), h('span', { class: 'muted' }, [' (', readableNS, ')'])])])]);
-}
 
-// Section of parent data, with circle icon
-function dataSection(sublinks, entry, state, actions) {
-  var hrefs = objHrefs(entry);
-  sublinks = sublinks.filter(function (l) {
-    return l.parent_id === entry._id;
-  });
-  var entryName = entry.obj_name;
-  return h('div', { class: 'clearfix py1' }, [h('div', { class: 'h3-5 mb1 clearfix', style: { 'whiteSpace': 'nowrap' } }, [h('span', { class: 'mr1 circle inline-block' }, ''), h('div', { class: 'inline-block text-ellipsis-100p' }, [h('a', {
-    class: 'text-ellipsis-18rem',
-    onclick: function (ev) {
-      var upa = entry._key.replace(/:/g, '/');
-      actions.followLink({ upa: upa, name: entryName });
+    // Check for all empty radio buttons and serialize them with key=""
+    if (options.empty) {
+        for (var key in radio_store) {
+            if (!radio_store[key]) {
+                result = serializer(result, key, '');
+            }
+        }
     }
-  }, entryName), ' (', typeName(entry.ws_type), ') ', ' in ', h('a', { href: hrefs.narrative, target: '_blank' }, entry.narr_name)])]),
-  // Sub-link sections
-  h('div', {}, [sublinks.map(function (subentry) {
-    return subDataSection(subentry.obj, entry, state, actions);
-  })])]);
+
+    return result;
 }
 
-// Section of sublinked objects with little graph lines
-function subDataSection(subentry, entry, state, actions) {
-  var hrefs = objHrefs(subentry);
-  var name = subentry.obj_name;
-  var type = '';
-  if (subentry.ws_type) {
-    type = ' (' + typeName(subentry.ws_type) + ')';
-  }
-  var narrative = '';
-  if (subentry.narr_name && subentry.narr_name !== entry.narr_name) {
-    narrative = h('span', {}, [' in ', h('a', { href: hrefs.narrative, target: '_blank' }, subentry.narr_name)]);
-  }
-  /*
-  let author = ''
-  if (subentry.owner && subentry.owner !== entry.owner) {
-    author = h('span', {}, [
-      ' by ',
-      h('a', {href: hrefs.owner, target: '_blank'}, subentry.owner)
-    ])
-  }
-  */
-  return h('div', {
-    class: 'relative clearfix mb1',
-    style: { paddingLeft: '32px' }
-  }, [h('div', {
-    style: { position: 'absolute', top: '-32px', left: '7.5px' }
-  }, [graphLine()]), h('span', { class: 'inline-block muted text-ellipsis-100p' }, [h('a', {
-    onclick: function () {
-      var upa = subentry._key.replace(/:/g, '/');
-      actions.followLink({ name: name, upa: upa });
+function parse_keys(string) {
+    var keys = [];
+    var prefix = /^([^\[\]]*)/;
+    var children = new RegExp(brackets);
+    var match = prefix.exec(string);
+
+    if (match[1]) {
+        keys.push(match[1]);
     }
-  }, name), type, narrative])]);
+
+    while ((match = children.exec(string)) !== null) {
+        keys.push(match[1]);
+    }
+
+    return keys;
 }
 
-// Little svg line that represents sub-object links
-function graphLine() {
-  var style = 'stroke: #bbb; stroke-width: 2';
-  var height = 43;
-  var width = 22;
-  return h('svg', {
-    height: height + 1,
-    width: width,
-    class: 'inline-block align-top mr1'
-  }, [h('line', { x1: 5, y1: 0, x2: 5, y2: height, style: style }), h('line', { x1: 4, y1: height, x2: width, y2: height, style: style })]);
+function hash_assign(result, keys, value) {
+    if (keys.length === 0) {
+        result = value;
+        return result;
+    }
+
+    var key = keys.shift();
+    var between = key.match(/^\[(.+?)\]$/);
+
+    if (key === '[]') {
+        result = result || [];
+
+        if (Array.isArray(result)) {
+            result.push(hash_assign(null, keys, value));
+        }
+        else {
+            // This might be the result of bad name attributes like "[][foo]",
+            // in this case the original `result` object will already be
+            // assigned to an object literal. Rather than coerce the object to
+            // an array, or cause an exception the attribute "_values" is
+            // assigned as an array.
+            result._values = result._values || [];
+            result._values.push(hash_assign(null, keys, value));
+        }
+
+        return result;
+    }
+
+    // Key is an attribute name and can be assigned directly.
+    if (!between) {
+        result[key] = hash_assign(result[key], keys, value);
+    }
+    else {
+        var string = between[1];
+        // +var converts the variable into a number
+        // better than parseInt because it doesn't truncate away trailing
+        // letters and actually fails if whole thing is not a number
+        var index = +string;
+
+        // If the characters between the brackets is not a number it is an
+        // attribute name and can be assigned directly.
+        if (isNaN(index)) {
+            result = result || {};
+            result[string] = hash_assign(result[string], keys, value);
+        }
+        else {
+            result = result || [];
+            result[index] = hash_assign(result[index], keys, value);
+        }
+    }
+
+    return result;
 }
 
-/*
-// Filter results
-function filterTools () {
-  return h('div', { class: 'pb1' }, [
-    'Filter by ',
-    h('button', {class: 'btn mx2'}, 'Type'),
-    h('button', {class: 'btn mr2'}, 'Owner'),
-    h('div', {class: 'chkbx ml2'}, [
-      h('div', {class: 'checkmark'}),
-      h('input', {type: 'checkbox', id: 'chkbox1'}),
-      h('label', {for: 'chkbox1'}, 'Public')
-    ]),
-    h('div', {class: 'chkbx ml2'}, [
-      h('div', {class: 'checkmark'}),
-      h('input', {type: 'checkbox', id: 'chkbox2'}),
-      h('label', {for: 'chkbox2'}, 'Private')
-    ])
-  ])
-}
-*/
+// Object/hash encoding serializer.
+function hash_serializer(result, key, value) {
+    var matches = key.match(brackets);
 
-// Section header
-function header(text, total) {
-  return h('div', { class: 'my2 py1 border-bottom' }, [h('h2', { class: 'inline-block m0 h3' }, text), h('span', { class: 'right inline-block' }, [total, ' total'])]);
-}
+    // Has brackets? Use the recursive assignment function to walk the keys,
+    // construct any missing objects in the result tree and make the assignment
+    // at the end of the chain.
+    if (matches) {
+        var keys = parse_keys(key);
+        hash_assign(result, keys, value);
+    }
+    else {
+        // Non bracket notation can make assignments directly.
+        var existing = result[key];
 
-// Render to the page
-var container = document.querySelector('#hyperapp-container');
-var appActions = app(state, actions, view, container);
+        // If the value has been assigned already (for instance when a radio and
+        // a checkbox have the same name attribute) convert the previous value
+        // into an array before pushing into it.
+        //
+        // NOTE: If this requirement were removed all hash creation and
+        // assignment could go through `hash_assign`.
+        if (existing) {
+            if (!Array.isArray(existing)) {
+                result[key] = [ existing ];
+            }
 
-if (query.tok) {
-  appActions.update({ authToken: query.tok });
-}
+            result[key].push(value);
+        }
+        else {
+            result[key] = value;
+        }
+    }
 
-if (query.upa) {
-  var upa = query.upa.replace(/:/g, '/');
-  var name = query.name || 'Object ' + upa;
-  appActions.followLink({ name: name, upa: upa });
+    return result;
 }
 
-// window.history.pushState(null, '', '') // clear out the url query params
+// urlform encoding serializer
+function str_serialize(result, key, value) {
+    // encode newlines as \r\n cause the html spec says so
+    value = value.replace(/(\r)?\n/g, '\r\n');
+    value = encodeURIComponent(value);
 
-/*
-function fetchObj (upa, token) {
-  // Fetch info about an object
-  const query = (`
-    for obj in wsprov_object
-      filter obj._key == @obj_key
-      return obj
-  `)
-  const payload = { query, obj_key: upa.replace(/\//g, ':') }
-  return aqlQuery(payload, token)
-}
-*/
-
-function fetchLinkedObjs(upa, token) {
-  // Fetch all linked and sub-linked data from an upa
-  /*
-  const query = (`
-    let obj_id = CONCAT("wsprov_object/", @obj_key)
-    let links = (
-      for obj in 1..1 any obj_id wsprov_links
-      filter obj
-      return obj
-    )
-    let sublinks = (
-      for obj in wsprov_object
-      filter obj in links
-      for obj1 in 1..100 any obj wsprov_links
-        filter obj1
-        limit 10
-        return distinct {parent_id: obj._id, obj: obj1}
-    )
-    return {links: links, sublinks: sublinks}
-  `)
-  */
-  var payload = { key: upa.replace(/\//g, ':'), link_limit: 10, sublink_limit: 10 };
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' });
+    // spaces should be '+' rather than '%20'.
+    value = value.replace(/%20/g, '+');
+    return result + (result ? '&' : '') + encodeURIComponent(key) + '=' + value;
 }
 
-// Get 1st-level linked objects for every given object in a list
-function fetchManyLinkedObjs(upas, token) {
-  var objIds = upas.map(function (u) {
-    return 'wsprov_object/' + u.replace(/\//g, ':');
-  });
-  /*
-  const query = (`
-    let links = (
-      for obj in wsprov_object
-      filter obj._id in @objIds
-      for obj1 in 1..100 any obj wsprov_links
-        filter obj1
-        return {obj: obj1, parent_id: obj._id}
-    )
-    return {links: links}
-  `)
-  */
-  var payload = { obj_ids: objIds, link_limit: 10 };
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_multiple_linked_objects' });
+module.exports = serialize;
+
+},{}],5:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var vnode_1 = require("./vnode");
+var is = require("./is");
+function addNS(data, children, sel) {
+    data.ns = 'http://www.w3.org/2000/svg';
+    if (sel !== 'foreignObject' && children !== undefined) {
+        for (var i = 0; i < children.length; ++i) {
+            var childData = children[i].data;
+            if (childData !== undefined) {
+                addNS(childData, children[i].children, children[i].sel);
+            }
+        }
+    }
+}
+function h(sel, b, c) {
+    var data = {}, children, text, i;
+    if (c !== undefined) {
+        data = b;
+        if (is.array(c)) {
+            children = c;
+        }
+        else if (is.primitive(c)) {
+            text = c;
+        }
+        else if (c && c.sel) {
+            children = [c];
+        }
+    }
+    else if (b !== undefined) {
+        if (is.array(b)) {
+            children = b;
+        }
+        else if (is.primitive(b)) {
+            text = b;
+        }
+        else if (b && b.sel) {
+            children = [b];
+        }
+        else {
+            data = b;
+        }
+    }
+    if (children !== undefined) {
+        for (i = 0; i < children.length; ++i) {
+            if (is.primitive(children[i]))
+                children[i] = vnode_1.vnode(undefined, undefined, undefined, children[i], undefined);
+        }
+    }
+    if (sel[0] === 's' && sel[1] === 'v' && sel[2] === 'g' &&
+        (sel.length === 3 || sel[3] === '.' || sel[3] === '#')) {
+        addNS(data, children, sel);
+    }
+    return vnode_1.vnode(sel, data, children, text, undefined);
+}
+exports.h = h;
+;
+exports.default = h;
+
+},{"./is":7,"./vnode":16}],6:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+function createElement(tagName) {
+    return document.createElement(tagName);
+}
+function createElementNS(namespaceURI, qualifiedName) {
+    return document.createElementNS(namespaceURI, qualifiedName);
+}
+function createTextNode(text) {
+    return document.createTextNode(text);
+}
+function createComment(text) {
+    return document.createComment(text);
+}
+function insertBefore(parentNode, newNode, referenceNode) {
+    parentNode.insertBefore(newNode, referenceNode);
+}
+function removeChild(node, child) {
+    node.removeChild(child);
+}
+function appendChild(node, child) {
+    node.appendChild(child);
+}
+function parentNode(node) {
+    return node.parentNode;
+}
+function nextSibling(node) {
+    return node.nextSibling;
+}
+function tagName(elm) {
+    return elm.tagName;
+}
+function setTextContent(node, text) {
+    node.textContent = text;
+}
+function getTextContent(node) {
+    return node.textContent;
+}
+function isElement(node) {
+    return node.nodeType === 1;
+}
+function isText(node) {
+    return node.nodeType === 3;
+}
+function isComment(node) {
+    return node.nodeType === 8;
+}
+exports.htmlDomApi = {
+    createElement: createElement,
+    createElementNS: createElementNS,
+    createTextNode: createTextNode,
+    createComment: createComment,
+    insertBefore: insertBefore,
+    removeChild: removeChild,
+    appendChild: appendChild,
+    parentNode: parentNode,
+    nextSibling: nextSibling,
+    tagName: tagName,
+    setTextContent: setTextContent,
+    getTextContent: getTextContent,
+    isElement: isElement,
+    isText: isText,
+    isComment: isComment,
+};
+exports.default = exports.htmlDomApi;
+
+},{}],7:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.array = Array.isArray;
+function primitive(s) {
+    return typeof s === 'string' || typeof s === 'number';
+}
+exports.primitive = primitive;
+
+},{}],8:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var xlinkNS = 'http://www.w3.org/1999/xlink';
+var xmlNS = 'http://www.w3.org/XML/1998/namespace';
+var colonChar = 58;
+var xChar = 120;
+function updateAttrs(oldVnode, vnode) {
+    var key, elm = vnode.elm, oldAttrs = oldVnode.data.attrs, attrs = vnode.data.attrs;
+    if (!oldAttrs && !attrs)
+        return;
+    if (oldAttrs === attrs)
+        return;
+    oldAttrs = oldAttrs || {};
+    attrs = attrs || {};
+    // update modified attributes, add new attributes
+    for (key in attrs) {
+        var cur = attrs[key];
+        var old = oldAttrs[key];
+        if (old !== cur) {
+            if (cur === true) {
+                elm.setAttribute(key, "");
+            }
+            else if (cur === false) {
+                elm.removeAttribute(key);
+            }
+            else {
+                if (key.charCodeAt(0) !== xChar) {
+                    elm.setAttribute(key, cur);
+                }
+                else if (key.charCodeAt(3) === colonChar) {
+                    // Assume xml namespace
+                    elm.setAttributeNS(xmlNS, key, cur);
+                }
+                else if (key.charCodeAt(5) === colonChar) {
+                    // Assume xlink namespace
+                    elm.setAttributeNS(xlinkNS, key, cur);
+                }
+                else {
+                    elm.setAttribute(key, cur);
+                }
+            }
+        }
+    }
+    // remove removed attributes
+    // use `in` operator since the previous `for` iteration uses it (.i.e. add even attributes with undefined value)
+    // the other option is to remove all attributes with value == undefined
+    for (key in oldAttrs) {
+        if (!(key in attrs)) {
+            elm.removeAttribute(key);
+        }
+    }
+}
+exports.attributesModule = { create: updateAttrs, update: updateAttrs };
+exports.default = exports.attributesModule;
+
+},{}],9:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+function updateClass(oldVnode, vnode) {
+    var cur, name, elm = vnode.elm, oldClass = oldVnode.data.class, klass = vnode.data.class;
+    if (!oldClass && !klass)
+        return;
+    if (oldClass === klass)
+        return;
+    oldClass = oldClass || {};
+    klass = klass || {};
+    for (name in oldClass) {
+        if (!klass[name]) {
+            elm.classList.remove(name);
+        }
+    }
+    for (name in klass) {
+        cur = klass[name];
+        if (cur !== oldClass[name]) {
+            elm.classList[cur ? 'add' : 'remove'](name);
+        }
+    }
+}
+exports.classModule = { create: updateClass, update: updateClass };
+exports.default = exports.classModule;
+
+},{}],10:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var CAPS_REGEX = /[A-Z]/g;
+function updateDataset(oldVnode, vnode) {
+    var elm = vnode.elm, oldDataset = oldVnode.data.dataset, dataset = vnode.data.dataset, key;
+    if (!oldDataset && !dataset)
+        return;
+    if (oldDataset === dataset)
+        return;
+    oldDataset = oldDataset || {};
+    dataset = dataset || {};
+    var d = elm.dataset;
+    for (key in oldDataset) {
+        if (!dataset[key]) {
+            if (d) {
+                if (key in d) {
+                    delete d[key];
+                }
+            }
+            else {
+                elm.removeAttribute('data-' + key.replace(CAPS_REGEX, '-$&').toLowerCase());
+            }
+        }
+    }
+    for (key in dataset) {
+        if (oldDataset[key] !== dataset[key]) {
+            if (d) {
+                d[key] = dataset[key];
+            }
+            else {
+                elm.setAttribute('data-' + key.replace(CAPS_REGEX, '-$&').toLowerCase(), dataset[key]);
+            }
+        }
+    }
+}
+exports.datasetModule = { create: updateDataset, update: updateDataset };
+exports.default = exports.datasetModule;
+
+},{}],11:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+function invokeHandler(handler, vnode, event) {
+    if (typeof handler === "function") {
+        // call function handler
+        handler.call(vnode, event, vnode);
+    }
+    else if (typeof handler === "object") {
+        // call handler with arguments
+        if (typeof handler[0] === "function") {
+            // special case for single argument for performance
+            if (handler.length === 2) {
+                handler[0].call(vnode, handler[1], event, vnode);
+            }
+            else {
+                var args = handler.slice(1);
+                args.push(event);
+                args.push(vnode);
+                handler[0].apply(vnode, args);
+            }
+        }
+        else {
+            // call multiple handlers
+            for (var i = 0; i < handler.length; i++) {
+                invokeHandler(handler[i], vnode, event);
+            }
+        }
+    }
+}
+function handleEvent(event, vnode) {
+    var name = event.type, on = vnode.data.on;
+    // call event handler(s) if exists
+    if (on && on[name]) {
+        invokeHandler(on[name], vnode, event);
+    }
+}
+function createListener() {
+    return function handler(event) {
+        handleEvent(event, handler.vnode);
+    };
+}
+function updateEventListeners(oldVnode, vnode) {
+    var oldOn = oldVnode.data.on, oldListener = oldVnode.listener, oldElm = oldVnode.elm, on = vnode && vnode.data.on, elm = (vnode && vnode.elm), name;
+    // optimization for reused immutable handlers
+    if (oldOn === on) {
+        return;
+    }
+    // remove existing listeners which no longer used
+    if (oldOn && oldListener) {
+        // if element changed or deleted we remove all existing listeners unconditionally
+        if (!on) {
+            for (name in oldOn) {
+                // remove listener if element was changed or existing listeners removed
+                oldElm.removeEventListener(name, oldListener, false);
+            }
+        }
+        else {
+            for (name in oldOn) {
+                // remove listener if existing listener removed
+                if (!on[name]) {
+                    oldElm.removeEventListener(name, oldListener, false);
+                }
+            }
+        }
+    }
+    // add new listeners which has not already attached
+    if (on) {
+        // reuse existing listener or create new
+        var listener = vnode.listener = oldVnode.listener || createListener();
+        // update vnode for listener
+        listener.vnode = vnode;
+        // if element changed or added we add all needed listeners unconditionally
+        if (!oldOn) {
+            for (name in on) {
+                // add listener if element was changed or new listeners added
+                elm.addEventListener(name, listener, false);
+            }
+        }
+        else {
+            for (name in on) {
+                // add listener if new listener added
+                if (!oldOn[name]) {
+                    elm.addEventListener(name, listener, false);
+                }
+            }
+        }
+    }
+}
+exports.eventListenersModule = {
+    create: updateEventListeners,
+    update: updateEventListeners,
+    destroy: updateEventListeners
+};
+exports.default = exports.eventListenersModule;
+
+},{}],12:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+function updateProps(oldVnode, vnode) {
+    var key, cur, old, elm = vnode.elm, oldProps = oldVnode.data.props, props = vnode.data.props;
+    if (!oldProps && !props)
+        return;
+    if (oldProps === props)
+        return;
+    oldProps = oldProps || {};
+    props = props || {};
+    for (key in oldProps) {
+        if (!props[key]) {
+            delete elm[key];
+        }
+    }
+    for (key in props) {
+        cur = props[key];
+        old = oldProps[key];
+        if (old !== cur && (key !== 'value' || elm[key] !== cur)) {
+            elm[key] = cur;
+        }
+    }
+}
+exports.propsModule = { create: updateProps, update: updateProps };
+exports.default = exports.propsModule;
+
+},{}],13:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+// Bindig `requestAnimationFrame` like this fixes a bug in IE/Edge. See #360 and #409.
+var raf = (typeof window !== 'undefined' && (window.requestAnimationFrame).bind(window)) || setTimeout;
+var nextFrame = function (fn) { raf(function () { raf(fn); }); };
+var reflowForced = false;
+function setNextFrame(obj, prop, val) {
+    nextFrame(function () { obj[prop] = val; });
+}
+function updateStyle(oldVnode, vnode) {
+    var cur, name, elm = vnode.elm, oldStyle = oldVnode.data.style, style = vnode.data.style;
+    if (!oldStyle && !style)
+        return;
+    if (oldStyle === style)
+        return;
+    oldStyle = oldStyle || {};
+    style = style || {};
+    var oldHasDel = 'delayed' in oldStyle;
+    for (name in oldStyle) {
+        if (!style[name]) {
+            if (name[0] === '-' && name[1] === '-') {
+                elm.style.removeProperty(name);
+            }
+            else {
+                elm.style[name] = '';
+            }
+        }
+    }
+    for (name in style) {
+        cur = style[name];
+        if (name === 'delayed' && style.delayed) {
+            for (var name2 in style.delayed) {
+                cur = style.delayed[name2];
+                if (!oldHasDel || cur !== oldStyle.delayed[name2]) {
+                    setNextFrame(elm.style, name2, cur);
+                }
+            }
+        }
+        else if (name !== 'remove' && cur !== oldStyle[name]) {
+            if (name[0] === '-' && name[1] === '-') {
+                elm.style.setProperty(name, cur);
+            }
+            else {
+                elm.style[name] = cur;
+            }
+        }
+    }
+}
+function applyDestroyStyle(vnode) {
+    var style, name, elm = vnode.elm, s = vnode.data.style;
+    if (!s || !(style = s.destroy))
+        return;
+    for (name in style) {
+        elm.style[name] = style[name];
+    }
+}
+function applyRemoveStyle(vnode, rm) {
+    var s = vnode.data.style;
+    if (!s || !s.remove) {
+        rm();
+        return;
+    }
+    if (!reflowForced) {
+        getComputedStyle(document.body).transform;
+        reflowForced = true;
+    }
+    var name, elm = vnode.elm, i = 0, compStyle, style = s.remove, amount = 0, applied = [];
+    for (name in style) {
+        applied.push(name);
+        elm.style[name] = style[name];
+    }
+    compStyle = getComputedStyle(elm);
+    var props = compStyle['transition-property'].split(', ');
+    for (; i < props.length; ++i) {
+        if (applied.indexOf(props[i]) !== -1)
+            amount++;
+    }
+    elm.addEventListener('transitionend', function (ev) {
+        if (ev.target === elm)
+            --amount;
+        if (amount === 0)
+            rm();
+    });
+}
+function forceReflow() {
+    reflowForced = false;
+}
+exports.styleModule = {
+    pre: forceReflow,
+    create: updateStyle,
+    update: updateStyle,
+    destroy: applyDestroyStyle,
+    remove: applyRemoveStyle
+};
+exports.default = exports.styleModule;
+
+},{}],14:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var vnode_1 = require("./vnode");
+var is = require("./is");
+var htmldomapi_1 = require("./htmldomapi");
+function isUndef(s) { return s === undefined; }
+function isDef(s) { return s !== undefined; }
+var emptyNode = vnode_1.default('', {}, [], undefined, undefined);
+function sameVnode(vnode1, vnode2) {
+    return vnode1.key === vnode2.key && vnode1.sel === vnode2.sel;
+}
+function isVnode(vnode) {
+    return vnode.sel !== undefined;
+}
+function createKeyToOldIdx(children, beginIdx, endIdx) {
+    var i, map = {}, key, ch;
+    for (i = beginIdx; i <= endIdx; ++i) {
+        ch = children[i];
+        if (ch != null) {
+            key = ch.key;
+            if (key !== undefined)
+                map[key] = i;
+        }
+    }
+    return map;
+}
+var hooks = ['create', 'update', 'remove', 'destroy', 'pre', 'post'];
+var h_1 = require("./h");
+exports.h = h_1.h;
+var thunk_1 = require("./thunk");
+exports.thunk = thunk_1.thunk;
+function init(modules, domApi) {
+    var i, j, cbs = {};
+    var api = domApi !== undefined ? domApi : htmldomapi_1.default;
+    for (i = 0; i < hooks.length; ++i) {
+        cbs[hooks[i]] = [];
+        for (j = 0; j < modules.length; ++j) {
+            var hook = modules[j][hooks[i]];
+            if (hook !== undefined) {
+                cbs[hooks[i]].push(hook);
+            }
+        }
+    }
+    function emptyNodeAt(elm) {
+        var id = elm.id ? '#' + elm.id : '';
+        var c = elm.className ? '.' + elm.className.split(' ').join('.') : '';
+        return vnode_1.default(api.tagName(elm).toLowerCase() + id + c, {}, [], undefined, elm);
+    }
+    function createRmCb(childElm, listeners) {
+        return function rmCb() {
+            if (--listeners === 0) {
+                var parent_1 = api.parentNode(childElm);
+                api.removeChild(parent_1, childElm);
+            }
+        };
+    }
+    function createElm(vnode, insertedVnodeQueue) {
+        var i, data = vnode.data;
+        if (data !== undefined) {
+            if (isDef(i = data.hook) && isDef(i = i.init)) {
+                i(vnode);
+                data = vnode.data;
+            }
+        }
+        var children = vnode.children, sel = vnode.sel;
+        if (sel === '!') {
+            if (isUndef(vnode.text)) {
+                vnode.text = '';
+            }
+            vnode.elm = api.createComment(vnode.text);
+        }
+        else if (sel !== undefined) {
+            // Parse selector
+            var hashIdx = sel.indexOf('#');
+            var dotIdx = sel.indexOf('.', hashIdx);
+            var hash = hashIdx > 0 ? hashIdx : sel.length;
+            var dot = dotIdx > 0 ? dotIdx : sel.length;
+            var tag = hashIdx !== -1 || dotIdx !== -1 ? sel.slice(0, Math.min(hash, dot)) : sel;
+            var elm = vnode.elm = isDef(data) && isDef(i = data.ns) ? api.createElementNS(i, tag)
+                : api.createElement(tag);
+            if (hash < dot)
+                elm.setAttribute('id', sel.slice(hash + 1, dot));
+            if (dotIdx > 0)
+                elm.setAttribute('class', sel.slice(dot + 1).replace(/\./g, ' '));
+            for (i = 0; i < cbs.create.length; ++i)
+                cbs.create[i](emptyNode, vnode);
+            if (is.array(children)) {
+                for (i = 0; i < children.length; ++i) {
+                    var ch = children[i];
+                    if (ch != null) {
+                        api.appendChild(elm, createElm(ch, insertedVnodeQueue));
+                    }
+                }
+            }
+            else if (is.primitive(vnode.text)) {
+                api.appendChild(elm, api.createTextNode(vnode.text));
+            }
+            i = vnode.data.hook; // Reuse variable
+            if (isDef(i)) {
+                if (i.create)
+                    i.create(emptyNode, vnode);
+                if (i.insert)
+                    insertedVnodeQueue.push(vnode);
+            }
+        }
+        else {
+            vnode.elm = api.createTextNode(vnode.text);
+        }
+        return vnode.elm;
+    }
+    function addVnodes(parentElm, before, vnodes, startIdx, endIdx, insertedVnodeQueue) {
+        for (; startIdx <= endIdx; ++startIdx) {
+            var ch = vnodes[startIdx];
+            if (ch != null) {
+                api.insertBefore(parentElm, createElm(ch, insertedVnodeQueue), before);
+            }
+        }
+    }
+    function invokeDestroyHook(vnode) {
+        var i, j, data = vnode.data;
+        if (data !== undefined) {
+            if (isDef(i = data.hook) && isDef(i = i.destroy))
+                i(vnode);
+            for (i = 0; i < cbs.destroy.length; ++i)
+                cbs.destroy[i](vnode);
+            if (vnode.children !== undefined) {
+                for (j = 0; j < vnode.children.length; ++j) {
+                    i = vnode.children[j];
+                    if (i != null && typeof i !== "string") {
+                        invokeDestroyHook(i);
+                    }
+                }
+            }
+        }
+    }
+    function removeVnodes(parentElm, vnodes, startIdx, endIdx) {
+        for (; startIdx <= endIdx; ++startIdx) {
+            var i_1 = void 0, listeners = void 0, rm = void 0, ch = vnodes[startIdx];
+            if (ch != null) {
+                if (isDef(ch.sel)) {
+                    invokeDestroyHook(ch);
+                    listeners = cbs.remove.length + 1;
+                    rm = createRmCb(ch.elm, listeners);
+                    for (i_1 = 0; i_1 < cbs.remove.length; ++i_1)
+                        cbs.remove[i_1](ch, rm);
+                    if (isDef(i_1 = ch.data) && isDef(i_1 = i_1.hook) && isDef(i_1 = i_1.remove)) {
+                        i_1(ch, rm);
+                    }
+                    else {
+                        rm();
+                    }
+                }
+                else {
+                    api.removeChild(parentElm, ch.elm);
+                }
+            }
+        }
+    }
+    function updateChildren(parentElm, oldCh, newCh, insertedVnodeQueue) {
+        var oldStartIdx = 0, newStartIdx = 0;
+        var oldEndIdx = oldCh.length - 1;
+        var oldStartVnode = oldCh[0];
+        var oldEndVnode = oldCh[oldEndIdx];
+        var newEndIdx = newCh.length - 1;
+        var newStartVnode = newCh[0];
+        var newEndVnode = newCh[newEndIdx];
+        var oldKeyToIdx;
+        var idxInOld;
+        var elmToMove;
+        var before;
+        while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+            if (oldStartVnode == null) {
+                oldStartVnode = oldCh[++oldStartIdx]; // Vnode might have been moved left
+            }
+            else if (oldEndVnode == null) {
+                oldEndVnode = oldCh[--oldEndIdx];
+            }
+            else if (newStartVnode == null) {
+                newStartVnode = newCh[++newStartIdx];
+            }
+            else if (newEndVnode == null) {
+                newEndVnode = newCh[--newEndIdx];
+            }
+            else if (sameVnode(oldStartVnode, newStartVnode)) {
+                patchVnode(oldStartVnode, newStartVnode, insertedVnodeQueue);
+                oldStartVnode = oldCh[++oldStartIdx];
+                newStartVnode = newCh[++newStartIdx];
+            }
+            else if (sameVnode(oldEndVnode, newEndVnode)) {
+                patchVnode(oldEndVnode, newEndVnode, insertedVnodeQueue);
+                oldEndVnode = oldCh[--oldEndIdx];
+                newEndVnode = newCh[--newEndIdx];
+            }
+            else if (sameVnode(oldStartVnode, newEndVnode)) {
+                patchVnode(oldStartVnode, newEndVnode, insertedVnodeQueue);
+                api.insertBefore(parentElm, oldStartVnode.elm, api.nextSibling(oldEndVnode.elm));
+                oldStartVnode = oldCh[++oldStartIdx];
+                newEndVnode = newCh[--newEndIdx];
+            }
+            else if (sameVnode(oldEndVnode, newStartVnode)) {
+                patchVnode(oldEndVnode, newStartVnode, insertedVnodeQueue);
+                api.insertBefore(parentElm, oldEndVnode.elm, oldStartVnode.elm);
+                oldEndVnode = oldCh[--oldEndIdx];
+                newStartVnode = newCh[++newStartIdx];
+            }
+            else {
+                if (oldKeyToIdx === undefined) {
+                    oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx);
+                }
+                idxInOld = oldKeyToIdx[newStartVnode.key];
+                if (isUndef(idxInOld)) {
+                    api.insertBefore(parentElm, createElm(newStartVnode, insertedVnodeQueue), oldStartVnode.elm);
+                    newStartVnode = newCh[++newStartIdx];
+                }
+                else {
+                    elmToMove = oldCh[idxInOld];
+                    if (elmToMove.sel !== newStartVnode.sel) {
+                        api.insertBefore(parentElm, createElm(newStartVnode, insertedVnodeQueue), oldStartVnode.elm);
+                    }
+                    else {
+                        patchVnode(elmToMove, newStartVnode, insertedVnodeQueue);
+                        oldCh[idxInOld] = undefined;
+                        api.insertBefore(parentElm, elmToMove.elm, oldStartVnode.elm);
+                    }
+                    newStartVnode = newCh[++newStartIdx];
+                }
+            }
+        }
+        if (oldStartIdx <= oldEndIdx || newStartIdx <= newEndIdx) {
+            if (oldStartIdx > oldEndIdx) {
+                before = newCh[newEndIdx + 1] == null ? null : newCh[newEndIdx + 1].elm;
+                addVnodes(parentElm, before, newCh, newStartIdx, newEndIdx, insertedVnodeQueue);
+            }
+            else {
+                removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx);
+            }
+        }
+    }
+    function patchVnode(oldVnode, vnode, insertedVnodeQueue) {
+        var i, hook;
+        if (isDef(i = vnode.data) && isDef(hook = i.hook) && isDef(i = hook.prepatch)) {
+            i(oldVnode, vnode);
+        }
+        var elm = vnode.elm = oldVnode.elm;
+        var oldCh = oldVnode.children;
+        var ch = vnode.children;
+        if (oldVnode === vnode)
+            return;
+        if (vnode.data !== undefined) {
+            for (i = 0; i < cbs.update.length; ++i)
+                cbs.update[i](oldVnode, vnode);
+            i = vnode.data.hook;
+            if (isDef(i) && isDef(i = i.update))
+                i(oldVnode, vnode);
+        }
+        if (isUndef(vnode.text)) {
+            if (isDef(oldCh) && isDef(ch)) {
+                if (oldCh !== ch)
+                    updateChildren(elm, oldCh, ch, insertedVnodeQueue);
+            }
+            else if (isDef(ch)) {
+                if (isDef(oldVnode.text))
+                    api.setTextContent(elm, '');
+                addVnodes(elm, null, ch, 0, ch.length - 1, insertedVnodeQueue);
+            }
+            else if (isDef(oldCh)) {
+                removeVnodes(elm, oldCh, 0, oldCh.length - 1);
+            }
+            else if (isDef(oldVnode.text)) {
+                api.setTextContent(elm, '');
+            }
+        }
+        else if (oldVnode.text !== vnode.text) {
+            if (isDef(oldCh)) {
+                removeVnodes(elm, oldCh, 0, oldCh.length - 1);
+            }
+            api.setTextContent(elm, vnode.text);
+        }
+        if (isDef(hook) && isDef(i = hook.postpatch)) {
+            i(oldVnode, vnode);
+        }
+    }
+    return function patch(oldVnode, vnode) {
+        var i, elm, parent;
+        var insertedVnodeQueue = [];
+        for (i = 0; i < cbs.pre.length; ++i)
+            cbs.pre[i]();
+        if (!isVnode(oldVnode)) {
+            oldVnode = emptyNodeAt(oldVnode);
+        }
+        if (sameVnode(oldVnode, vnode)) {
+            patchVnode(oldVnode, vnode, insertedVnodeQueue);
+        }
+        else {
+            elm = oldVnode.elm;
+            parent = api.parentNode(elm);
+            createElm(vnode, insertedVnodeQueue);
+            if (parent !== null) {
+                api.insertBefore(parent, vnode.elm, api.nextSibling(elm));
+                removeVnodes(parent, [oldVnode], 0, 0);
+            }
+        }
+        for (i = 0; i < insertedVnodeQueue.length; ++i) {
+            insertedVnodeQueue[i].data.hook.insert(insertedVnodeQueue[i]);
+        }
+        for (i = 0; i < cbs.post.length; ++i)
+            cbs.post[i]();
+        return vnode;
+    };
+}
+exports.init = init;
+
+},{"./h":5,"./htmldomapi":6,"./is":7,"./thunk":15,"./vnode":16}],15:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var h_1 = require("./h");
+function copyToThunk(vnode, thunk) {
+    thunk.elm = vnode.elm;
+    vnode.data.fn = thunk.data.fn;
+    vnode.data.args = thunk.data.args;
+    thunk.data = vnode.data;
+    thunk.children = vnode.children;
+    thunk.text = vnode.text;
+    thunk.elm = vnode.elm;
+}
+function init(thunk) {
+    var cur = thunk.data;
+    var vnode = cur.fn.apply(undefined, cur.args);
+    copyToThunk(vnode, thunk);
+}
+function prepatch(oldVnode, thunk) {
+    var i, old = oldVnode.data, cur = thunk.data;
+    var oldArgs = old.args, args = cur.args;
+    if (old.fn !== cur.fn || oldArgs.length !== args.length) {
+        copyToThunk(cur.fn.apply(undefined, args), thunk);
+        return;
+    }
+    for (i = 0; i < args.length; ++i) {
+        if (oldArgs[i] !== args[i]) {
+            copyToThunk(cur.fn.apply(undefined, args), thunk);
+            return;
+        }
+    }
+    copyToThunk(oldVnode, thunk);
+}
+exports.thunk = function thunk(sel, key, fn, args) {
+    if (args === undefined) {
+        args = fn;
+        fn = key;
+        key = undefined;
+    }
+    return h_1.h(sel, {
+        key: key,
+        hook: { init: init, prepatch: prepatch },
+        fn: fn,
+        args: args
+    });
+};
+exports.default = exports.thunk;
+
+},{"./h":5}],16:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+function vnode(sel, data, children, text, elm) {
+    var key = data === undefined ? undefined : data.key;
+    return { sel: sel, data: data, children: children,
+        text: text, elm: elm, key: key };
+}
+exports.vnode = vnode;
+exports.default = vnode;
+
+},{}],17:[function(require,module,exports){
+module.exports = { fetchLinkedObjs: fetchLinkedObjs, fetchHomologs: fetchHomologs, fetchTypeCounts: fetchTypeCounts };
+
+var linkedQuery = '\nWITH wsprov_object\nLET obj_id = CONCAT("wsprov_object/", @obj_key)\nFOR v, e, p IN 1..100\n    INBOUND obj_id wsprov_links, wsprov_copied_into\n    OPTIONS {uniqueVertices: "global", bfs: true}\n    FILTER (!@type || v.ws_type == @type)\n    FILTER (!@owners || v.owner IN @owners)\n    FILTER (@show_private && @show_public) ? (v.is_public || v.workspace_id IN @ws_ids) :\n        (!@show_private || v.workspace_id IN @ws_ids) && (!@show_public || v.is_public)\n    LIMIT @offset, @results_limit\n    RETURN {\n        vertex: {\n            _key: v._key,\n            is_public: v.is_public,\n            narr_name: v.narr_name,\n            obj_name: v.obj_name,\n            owner: v.owner,\n            save_date: v.save_date,\n            workspace_id: v.workspace_id,\n            ws_type: v.ws_type\n        },\n        path: {\n            edges: p.edges[*]._id,\n            verts: p.vertices[*]._id\n        }\n    }\n';
+
+function fetchLinkedObjs(key, type) {
+  var payload = {
+    query: linkedQuery,
+    obj_key: key,
+    owners: false,
+    type: type,
+    show_private: true,
+    show_public: true,
+    offset: 0,
+    results_limit: 30
+  };
+  var token = window._env.authToken;
+  return aqlQuery(payload, token);
 }
 
-// Fetch all copies and linked objects of those copies from an upa
-function fetchCopies(upa, token, cb) {
-  /*
-  const query = (`
-    let obj_id = CONCAT("wsprov_object/", @obj_key)
-    let copies = (
-      for obj in 1..100 any obj_id wsprov_copied_into
-      filter obj
-      return obj
-    )
-    let sublinks = (
-      for obj in wsprov_object
-      filter obj in copies
-      for obj1 in 1..100 any obj wsprov_links
-        filter obj1
-        limit 10
-        return distinct {parent_id: obj._id, obj: obj1}
-    )
-    return {copies: copies, sublinks: sublinks}
-  `)
-  */
-  var payload = { obj_key: upa.replace(/\//g, ':'), sublink_limit: 10 };
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_copies' });
+var typeCountsQuery = '\nWITH wsprov_object\nLET obj_id = CONCAT("wsprov_object/", @obj_key)\nFOR v, e, p in 1..100\n  INBOUND obj_id wsprov_links, wsprov_copied_into\n  OPTIONS {uniqueVertices: "global", bfs: true}\n  FILTER p.vertices[1].is_taxon != true\n  FILTER (@show_private && @show_public) ? (v.is_public || v.workspace_id IN @ws_ids) :\n      (!@show_private || v.workspace_id IN @ws_ids) && (!@show_public || v.is_public)\n  COLLECT type = v.ws_type with count into type_count\n  SORT type_count DESC\n  RETURN {type, type_count}\n';
+
+function fetchTypeCounts(key) {
+  var payload = {
+    obj_key: key,
+    query: typeCountsQuery,
+    show_public: true,
+    show_private: true
+  };
+  var token = window._env.authToken;
+  return aqlQuery(payload, token);
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
 // For each homolog with a kbase_id, fetch the sub-links
 function fetchHomologs(upa, token) {
-  var url = 'https://kbase.us/dynserv/78a20dfaa6b39390ec2da8c02ccf8f1a7fc6198a.sketch-service';
+  var url = window._env.sketchURL;
   var payload = {
     method: 'get_homologs',
-    params: [upa]
+    params: { ws_ref: upa, n_max_results: 500 }
   };
+  var headers = {};
+  if (window._env.authToken) {
+    headers.Authorization = window._env.authToken;
+  }
   return window.fetch(url, {
     method: 'POST',
-    headers: {},
+    headers: headers,
     mode: 'cors',
     body: JSON.stringify(payload)
   }).then(function (resp) {
@@ -576,46 +1547,21 @@ function fetchHomologs(upa, token) {
   });
 }
 
-// Fetch a random object to search on
-// We find an object that has at least 1 copy, so the data is somewhat interesting
-function fetchRandom() {
-  // actions.update({ loadingUpa: true })
-  function makeRequest(token) {
-    var query = '\n      for e in wsprov_copied_into\n        sort rand()\n        limit 1\n        return e._from\n    ';
-    var payload = { query: query };
-    return aqlQuery(payload, token);
-  }
-  makeRequest(query.tok).then(function (result) {
-    var upa = result.replace('wsprov_object/', '').replace(/:/g, '/');
-    console.log('random upa:', upa);
-    // actions.update({ upa })
-  })
-  // .then(() => actions.update({ loadingUpa: false, error: null }))
-  .catch(function (err) {
-    console.error(err);
-  });
-}
-window.fetchRandom = fetchRandom;
-
 // Make a request to the relation engine api to do an ad-hoc admin query for prototyping
 function aqlQuery(payload, token, params) {
-  var apiUrl = (query.api_url || 'https://ci.kbase.us/services/relation_engine_api').replace(/\/$/, ''); // remove trailing slash
+  var apiUrl = window._env.relEngURL.replace(/\/$/, ''); // remove trailing slash
   var url = apiUrl + '/api/query_results/' + queryify(params);
-  console.log({ url: url });
+  var headers = {};
+  if (token) headers.Authorization = token;
   return window.fetch(url, {
     method: 'POST',
-    /*
-    headers: {
-      // 'Content-Type': 'application/json',
-      'Authorization': token
-    },
-    */
+    headers: headers,
     mode: 'cors',
     body: JSON.stringify(payload)
   }).then(function (resp) {
     return resp.json();
   }).then(function (json) {
-    if (json && json.results && json.results.length) return json.results[0];
+    if (json && json.results) return json;
     if (json && json.error) throw new Error(json.error);
   });
 }
@@ -623,12 +1569,89 @@ function aqlQuery(payload, token, params) {
 // Convert a js object into url querystring params
 function queryify(params) {
   var items = [];
-  for (var _name in params) {
-    items.push(encodeURIComponent(_name) + '=' + encodeURIComponent(params[_name]));
+  for (var name in params) {
+    items.push(encodeURIComponent(name) + '=' + encodeURIComponent(params[name]));
   }
   return '?' + items.join('&');
 }
-},{"hyperapp":2}],2:[function(require,module,exports){
-!function(e,n){"object"==typeof exports&&"undefined"!=typeof module?n(exports):"function"==typeof define&&define.amd?define(["exports"],n):n(e.hyperapp={})}(this,function(e){"use strict";e.h=function(e,n){for(var t=[],r=[],o=arguments.length;2<o--;)t.push(arguments[o]);for(;t.length;){var l=t.pop();if(l&&l.pop)for(o=l.length;o--;)t.push(l[o]);else null!=l&&!0!==l&&!1!==l&&r.push(l)}return"function"==typeof e?e(n||{},r):{nodeName:e,attributes:n||{},children:r,key:n&&n.key}},e.app=function(e,n,t,r){var o,l=[].map,u=r&&r.children[0]||null,i=u&&function n(e){return{nodeName:e.nodeName.toLowerCase(),attributes:{},children:l.call(e.childNodes,function(e){return 3===e.nodeType?e.nodeValue:n(e)})}}(u),f=[],m=!0,a=v(e),c=function e(r,o,l){for(var n in l)"function"==typeof l[n]?function(e,t){l[e]=function(e){var n=t(e);return"function"==typeof n&&(n=n(h(r,a),l)),n&&n!==(o=h(r,a))&&!n.then&&d(a=p(r,v(o,n),a)),n}}(n,l[n]):e(r.concat(n),o[n]=v(o[n]),l[n]=v(l[n]));return l}([],a,v(n));return d(),c;function g(e){return"function"==typeof e?g(e(a,c)):null!=e?e:""}function s(){o=!o;var e=g(t);for(r&&!o&&(u=function e(n,t,r,o,l){if(o===r);else if(null==r||r.nodeName!==o.nodeName){var u=k(o,l);n.insertBefore(u,t),null!=r&&T(n,t,r),t=u}else if(null==r.nodeName)t.nodeValue=o;else{x(t,r.attributes,o.attributes,l=l||"svg"===o.nodeName);for(var i={},f={},a=[],c=r.children,s=o.children,d=0;d<c.length;d++){a[d]=t.childNodes[d];var v=N(c[d]);null!=v&&(i[v]=[a[d],c[d]])}for(var d=0,p=0;p<s.length;){var v=N(c[d]),h=N(s[p]=g(s[p]));if(f[v])d++;else if(null==h||h!==N(c[d+1]))if(null==h||m)null==v&&(e(t,a[d],c[d],s[p],l),p++),d++;else{var y=i[h]||[];v===h?(e(t,y[0],y[1],s[p],l),d++):y[0]?e(t,t.insertBefore(y[0],a[d]),y[1],s[p],l):e(t,a[d],null,s[p],l),f[h]=s[p],p++}else null==v&&T(t,a[d],c[d]),d++}for(;d<c.length;)null==N(c[d])&&T(t,a[d],c[d]),d++;for(var d in i)f[d]||T(t,i[d][0],i[d][1])}return t}(r,u,i,i=e)),m=!1;f.length;)f.pop()()}function d(){o||(o=!0,setTimeout(s))}function v(e,n){var t={};for(var r in e)t[r]=e[r];for(var r in n)t[r]=n[r];return t}function p(e,n,t){var r={};return e.length?(r[e[0]]=1<e.length?p(e.slice(1),n,t[e[0]]):n,v(t,r)):n}function h(e,n){for(var t=0;t<e.length;)n=n[e[t++]];return n}function N(e){return e?e.key:null}function y(e){return e.currentTarget.events[e.type](e)}function b(e,n,t,r,o){if("key"===n);else if("style"===n)if("string"==typeof t)e.style.cssText=t;else for(var l in"string"==typeof r&&(r=e.style.cssText=""),v(r,t)){var u=null==t||null==t[l]?"":t[l];"-"===l[0]?e.style.setProperty(l,u):e.style[l]=u}else"o"===n[0]&&"n"===n[1]?(n=n.slice(2),e.events?r||(r=e.events[n]):e.events={},(e.events[n]=t)?r||e.addEventListener(n,y):e.removeEventListener(n,y)):n in e&&"list"!==n&&"type"!==n&&"draggable"!==n&&"spellcheck"!==n&&"translate"!==n&&!o?e[n]=null==t?"":t:null!=t&&!1!==t&&e.setAttribute(n,t),null!=t&&!1!==t||e.removeAttribute(n)}function k(e,n){var t="string"==typeof e||"number"==typeof e?document.createTextNode(e):(n=n||"svg"===e.nodeName)?document.createElementNS("http://www.w3.org/2000/svg",e.nodeName):document.createElement(e.nodeName),r=e.attributes;if(r){r.oncreate&&f.push(function(){r.oncreate(t)});for(var o=0;o<e.children.length;o++)t.appendChild(k(e.children[o]=g(e.children[o]),n));for(var l in r)b(t,l,r[l],null,n)}return t}function x(e,n,t,r){for(var o in v(n,t))t[o]!==("value"===o||"checked"===o?e[o]:n[o])&&b(e,o,t[o],n[o],r);var l=m?t.oncreate:t.onupdate;l&&f.push(function(){l(e,n)})}function T(e,n,t){function r(){e.removeChild(function e(n,t){var r=t.attributes;if(r){for(var o=0;o<t.children.length;o++)e(n.childNodes[o],t.children[o]);r.ondestroy&&r.ondestroy(n)}return n}(n,t))}var o=t.attributes&&t.attributes.onremove;o?o(n,r):r()}}});
+},{}],18:[function(require,module,exports){
+var colorMapping = {
+  AssemblyInput: '#F44336',
+  Assembly: '#920D58',
 
-},{}]},{},[1]);
+  ChromatographyMatrix: '#E91E63',
+  Collection: '#E91E63',
+
+  Genome: '#3F51B5',
+  ContigSet: '#3F51B5',
+
+  DomainAlignment: '#000000',
+  EstimateKResult: '#000000',
+
+  ExpressionMatrix: '#2196F3',
+  DifferentialExpressionMatrix: '#2196F3',
+  ExpressionSample: '#2196F3',
+  ExpressionSeries: '#2196F3',
+
+  FBA: '#673AB7',
+  FBAModel: '#673AB7',
+
+  FeatureClusters: '#AEEA00',
+
+  Feature: 'rgb(141, 175, 42)',
+  FeatureSet: 'rgb(141, 175, 42)',
+
+  FunctionalMatrix: '#000000',
+  GenomeAnnotation: '#920D58',
+
+  GenomeComparison: '#3F51B5',
+  GenomeSet: '#3F51B5',
+
+  Heatmap: '#795548',
+  Media: '#795548',
+  Metagenome: '#795548',
+  Network: '#795548',
+  Pangenome: '#795548',
+  PhenotypeSet: '#795548',
+  PhenotypeSimulationSet: '#795548',
+  ProteomeComparison: '#795548',
+  ReferenceAssembly: '#795548',
+  SingleEndLibrary: '#795548',
+  PairedEndLibrary: '#795548',
+
+  Taxon: '#920D58',
+  TaxonomicMatrix: '#795548',
+  Tree: '#795548',
+
+  RNASeqAlignment: 'rgb(183, 58, 58)',
+  RNASeqExpression: 'rgb(183, 58, 58)',
+  RNASeqSampleSet: 'rgb(183, 58, 58)',
+  RNASeqAlignmentSet: 'rgb(183, 58, 58)'
+};
+
+module.exports = { colors: colorMapping };
+},{}],19:[function(require,module,exports){
+module.exports = showIf;
+
+// A bit more readable ternary conditional for use in views
+// Display the vnode if the boolean is truthy
+// Can pass a plain vnode or a function that returns a vnode
+function showIf(bool, vnode) {
+  if (bool) {
+    return typeof vnode === 'function' ? vnode() : vnode;
+  }
+  return '';
+}
+},{}],20:[function(require,module,exports){
+// Convert an upa to an arango object key
+// '1/2/3' -> '1:2:3'
+module.exports = function (upa) {
+  return upa.replace(/\//g, ':');
+};
+},{}],21:[function(require,module,exports){
+// Convert an arango object key to an upa
+// '1:2:3' -> '1/2/3'
+module.exports = function (key) {
+  return key.replace(/:/g, '/');
+};
+},{}]},{},[3]);
