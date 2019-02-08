@@ -24,7 +24,6 @@ function Page () {
       this.loading = true
       this._render()
       const key = toObjKey(upa)
-      console.log('upa', upa)
       this.homologTable.fetch(upa)
       fetchTypeCounts(key, null)
         .then(resp => {
@@ -67,13 +66,16 @@ function view () {
     showIf(page.loading, () => h('p.muted.bold', 'Loading...')),
     showIf(page.error, () => h('p.error', page.error)),
     h('div', {class: {faded: page.loading}}, [
-      showIf(page.typeCounts, () => typeHeaders(page)),
+      typeHeaders(page),
       page.homologTable.view()
     ])
   ])
 }
 
 function typeHeaders (page) {
+  if (!page.typeCounts || !page.typeCounts.length) {
+    return h('p.muted', 'No linked data results')
+  }
   return h('div', [
     h('h2', 'Linked Data'),
     h('div', page.typeCounts.map(entry => {

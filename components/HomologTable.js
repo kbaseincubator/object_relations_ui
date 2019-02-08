@@ -25,6 +25,7 @@ function HomologTable () {
     },
     fetch (upa) {
       this.upa = upa.replace(/:/g, '/')
+      this.loading = true
       fetchHomologs(this.upa)
         .then(resp => {
           this.loading = false
@@ -37,6 +38,11 @@ function HomologTable () {
             this.homologs = null
             this.hasMore = false
           }
+          this._render()
+        })
+        .catch(err => {
+          console.error(err)
+          this.loading = false
           this._render()
         })
     },

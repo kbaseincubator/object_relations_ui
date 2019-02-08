@@ -28,7 +28,9 @@ function LinkedDataTable (objKey, type, count) {
           this.hasMore = false
           if (resp.results) {
             this.data = resp.results
-            this.hasMore = true
+            if (this.data.length < this.totalCount) {
+              this.hasMore = true
+            }
           } else if (resp.error) {
             console.error(resp.error)
           }
