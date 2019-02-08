@@ -113,12 +113,15 @@ function view () {
       }))
     ]),
     showIf(this.hasMore, () =>
-      h('button.btn.mt2', {
-        on: { click: () => this.fetchNext() },
-        props: {disabled: this.loadingMore}
-      }, [
-        showIf(this.loadingMore, 'Loading...'),
-        showIf(!this.loadingMore, `Load more results (${this.totalCount - this.data.length} left)`)
+      h('div', [
+        h('button.btn.mt2', {
+          on: { click: () => this.fetchNext() },
+          props: {disabled: this.loadingMore}
+        }, [
+          showIf(this.loadingMore, 'Loading...'),
+          showIf(!this.loadingMore, `Load more`)
+        ]),
+        h('span.muted.inline-block.ml1', [this.totalCount - this.data.length, ' left'])
       ])
     ),
     showIf(!this.hasMore, () => h('p.muted', 'No more results'))

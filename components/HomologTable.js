@@ -83,11 +83,11 @@ function view () {
       }))
     ]),
     showIf(!this.hasMore, () => h('p.muted', 'No more results.')),
-    showIf(this.hasMore, () => h('button.btn.mt2', {
-      on: { click: () => this.nextPage() }
-    }, [
-      'Show more ',
-      '(', this.hiddenData.length, ' left)'
-    ]))
+    showIf(this.hasMore, () =>
+      h('div', [
+        h('button.btn.mt2', { on: { click: () => this.nextPage() } }, [ 'Load more ' ]),
+        h('span.muted.inline-block.ml1', [this.hiddenData.length, ' left'])
+      ])
+    )
   ])
 }
