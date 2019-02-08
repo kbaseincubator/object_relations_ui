@@ -60,7 +60,7 @@ function Page () {
 function view () {
   const page = this
   window._page = page
-  const div = content => h('div.container.p2.max-width-3', content)
+  const div = content => h('div.container.px2.max-width-3', content)
   return div([
     page.upaForm.view(),
     showIf(page.loading, () => h('p.muted.bold', 'Loading...')),
