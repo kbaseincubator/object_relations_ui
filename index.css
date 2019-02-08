@@ -25,25 +25,28 @@ fieldset {
   padding: 0;
 }
 .circle {
-  height: 24px;
-  width: 24px;
+  height: 30px;
+  width: 30px;
   background: rgb(58, 183, 135);
   border-radius: 50%;
   position: absolute;
-  top: 0;
+  top: -4px;
   left: 0;
   text-align: center;
 }
 .circle span {
   font-size: 0.6rem;
   font-weight: bold;
-  line-height: 2.5;
   color: white;
+  display: inline-block;
+  margin-top: 8px;
 }
 .circle .hover-arrow {
   font-size: 1.2rem;
-  line-height: 1.2;
   color: white;
+  display: inline-block;
+  margin-top: 2px;
+  position: relative;
 }
 .circle-line {
   z-index: -1;
@@ -57,8 +60,11 @@ fieldset {
 .hover-parent {
   cursor: pointer;
 }
-.hover-parent:hover h4 {
+.hover-parent h4 {
   color: #2a72b4;
+}
+.hover-parent:hover h4 {
+  color: black;
 }
 .hover-parent:hover .hover-hide {
   display: none;

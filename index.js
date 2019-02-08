@@ -87,7 +87,7 @@ function typeHeaders (page) {
       const iconColor = icons.colors[entry.typeName]
       // Get the first two letters of the type for the icon
       const iconInitial = entry.typeName
-        .split('').filter(c => c === c.toUpperCase()).slice(0, 2).join('')
+        .split('').filter(c => c === c.toUpperCase()).slice(0, 3).join('')
       return h('div.relative.result-row.my2', [
         h('div.hover-parent', {
           on: {
@@ -103,9 +103,7 @@ function typeHeaders (page) {
         }, [
           circleIcon(iconInitial, expanded, iconColor),
           h('h4.inline-block.m0', {
-            style: {
-              paddingLeft: '32px'
-            }
+            style: { paddingLeft: '38px' }
           }, [
             entry.typeName, ' ', entry.typeVersion, ' · ', h('span.muted', [ count, ' total' ])
           ])
@@ -119,7 +117,7 @@ function typeHeaders (page) {
 function typeDataSection (page, entry) {
   const iconColor = icons.colors[entry.typeName]
   return h('div.mb2.pt1.clearfix', {
-    style: { paddingLeft: '32px' }
+    style: { paddingLeft: '38px' }
   }, [
     h('span.circle-line', {
       style: { background: iconColor }
