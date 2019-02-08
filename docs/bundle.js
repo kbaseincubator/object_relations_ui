@@ -85,7 +85,7 @@ function view() {
   var _this2 = this;
 
   if (!this.displayedData || !this.displayedData.length) {
-    return h('p.muted', 'No results');
+    return h('div', '');
   }
   return h('div', {
     class: { faded: this.loading }
@@ -368,7 +368,7 @@ function typeHeaders(page) {
   if (!page.typeCounts || !page.typeCounts.length) {
     return h('p.muted', 'No linked data results');
   }
-  return h('div', [h('h2', 'Linked Data'), h('div', page.typeCounts.map(function (entry) {
+  return h('div', [h('h2.mt0', 'Linked Data'), h('div', page.typeCounts.map(function (entry) {
     var count = entry.type_count,
         expanded = entry.expanded;
 
