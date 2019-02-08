@@ -15,6 +15,7 @@ const { LinkedDataTable } = require('./components/LinkedDataTable')
 
 function Page () {
   return Component({
+    pendingInput: true,
     loading: false,
     obj: {}, // workspace object
     upaForm: UpaForm(),
@@ -22,6 +23,7 @@ function Page () {
     fetchUpa (upa) {
       this.obj.upa = upa
       this.loading = true
+      this.pendingInput = false
       this._render()
       const key = toObjKey(upa)
       this.homologTable.fetch(upa)
@@ -65,6 +67,13 @@ function view () {
   const page = this
   window._page = page
   const div = content => h('div.container.px2.max-width-3', content)
+  if (page.pendingInput) {
+    // We are still awaiting any post message for initial parameters..
+    return div([
+      page.upaForm.view(),
+      h('p.muted', 'Waiting for input...')
+    ])
+  }
   return div([
     page.upaForm.view(),
     showIf(page.loading, () => h('p.muted.bold', 'Loading...')),

@@ -307,6 +307,7 @@ var _require3 = require('./components/LinkedDataTable'),
 
 function Page() {
   return Component({
+    pendingInput: true,
     loading: false,
     obj: {}, // workspace object
     upaForm: UpaForm(),
@@ -316,6 +317,7 @@ function Page() {
 
       this.obj.upa = upa;
       this.loading = true;
+      this.pendingInput = false;
       this._render();
       var key = toObjKey(upa);
       this.homologTable.fetch(upa);
@@ -360,6 +362,10 @@ function view() {
   var div = function (content) {
     return h('div.container.px2.max-width-3', content);
   };
+  if (page.pendingInput) {
+    // We are still awaiting any post message for initial parameters..
+    return div([page.upaForm.view(), h('p.muted', 'Waiting for input...')]);
+  }
   return div([page.upaForm.view(), showIf(page.loading, function () {
     return h('p.muted.bold', 'Loading...');
   }), showIf(page.error, function () {
