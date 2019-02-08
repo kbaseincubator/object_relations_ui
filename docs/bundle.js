@@ -129,7 +129,7 @@ function LinkedDataTable(objKey, type, count) {
     data: [],
     page: 0,
     limit: 30,
-    loading: false,
+    loading: true,
     fetchInitial: function () {
       var _this = this;
 
@@ -355,7 +355,7 @@ function view() {
   var page = this;
   window._page = page;
   var div = function (content) {
-    return h('div.container.p2.max-width-3', content);
+    return h('div.container.px2.max-width-3', content);
   };
   return div([page.upaForm.view(), showIf(page.loading, function () {
     return h('p.muted.bold', 'Loading...');
