@@ -15,7 +15,8 @@ function LinkedDataTable (objKey, type, count) {
     data: [],
     page: 0,
     limit: 30,
-    loading: true,
+    loading: false,
+    loadingMore: false,
     fetchInitial () {
       // Fetch the initial set of linked data
       this.loading = true

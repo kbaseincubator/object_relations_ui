@@ -127,7 +127,8 @@ function LinkedDataTable(objKey, type, count) {
     data: [],
     page: 0,
     limit: 30,
-    loading: true,
+    loading: false,
+    loadingMore: false,
     fetchInitial: function () {
       var _this = this;
 
@@ -306,7 +307,7 @@ var _require3 = require('./components/LinkedDataTable'),
 
 function Page() {
   return Component({
-    loading: 0,
+    loading: false,
     obj: {}, // workspace object
     upaForm: UpaForm(),
     homologTable: HomologTable(),
@@ -368,7 +369,11 @@ function view() {
 
 function typeHeaders(page) {
   if (!page.typeCounts || !page.typeCounts.length) {
-    return h('p.muted', 'No linked data results');
+    if (page.loading) {
+      return h('p.muted', 'Searching for linked data...');
+    } else {
+      return h('p.muted', 'No linked data results.');
+    }
   }
   return h('div', [h('h2.mt0', 'Linked Data'), h('div', page.typeCounts.map(function (entry) {
     var count = entry.type_count,
