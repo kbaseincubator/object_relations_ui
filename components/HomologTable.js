@@ -52,7 +52,7 @@ function HomologTable () {
 
 function view () {
   if (!this.displayedData || !this.displayedData.length) {
-    return h('p.muted', 'No results')
+    return h('div', '')
   }
   return h('div', {
     class: { faded: this.loading }

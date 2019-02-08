@@ -77,7 +77,7 @@ function typeHeaders (page) {
     return h('p.muted', 'No linked data results')
   }
   return h('div', [
-    h('h2', 'Linked Data'),
+    h('h2.mt0', 'Linked Data'),
     h('div', page.typeCounts.map(entry => {
       const { type_count: count, expanded } = entry
       const type = typeName(entry.type)
