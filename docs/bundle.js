@@ -321,11 +321,15 @@ function Page() {
       var key = toObjKey(upa);
       this.homologTable.fetch(upa);
       fetchTypeCounts(key, null).then(function (resp) {
+        console.log('resp', resp);
         if (resp.results && resp.results.length) {
           _this.typeCounts = resp.results
           // Initialize a LinkedDataTable for each type result
+          // Set other defaults
           .map(function (entry) {
             entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.type_count);
+            entry.typeName = typeName(entry.type);
+            entry.typeVersion = entry.type.match(/(\d+\.\d+)$/)[0];
             return entry;
           });
         } else {
@@ -372,9 +376,9 @@ function typeHeaders(page) {
     var count = entry.type_count,
         expanded = entry.expanded;
 
-    var type = typeName(entry.type);
-    var iconColor = icons.colors[type];
-    var iconInitial = type.split('').filter(function (c) {
+    var iconColor = icons.colors[entry.typeName];
+    // Get the first two letters of the type for the icon
+    var iconInitial = entry.typeName.split('').filter(function (c) {
       return c === c.toUpperCase();
     }).slice(0, 2).join('');
     return h('div.relative.result-row.my2', [h('div.hover-parent', {
@@ -392,20 +396,16 @@ function typeHeaders(page) {
       style: {
         paddingLeft: '32px'
       }
-    }, [type, ' · ', h('span.muted', [count, ' total'])])]), showIf(entry.expanded, function () {
+    }, [entry.typeName, ' ', entry.typeVersion, ' · ', h('span.muted', [count, ' total'])])]), showIf(entry.expanded, function () {
       return typeDataSection(page, entry);
     })]);
   }))]);
 }
 
 function typeDataSection(page, entry) {
-  var type = typeName(entry.type);
-  var iconColor = icons.colors[type];
-  console.log('entry.type, type, iconColor', entry.type, type, iconColor);
+  var iconColor = icons.colors[entry.typeName];
   return h('div.mb2.pt1.clearfix', {
-    style: {
-      paddingLeft: '32px'
-    }
+    style: { paddingLeft: '32px' }
   }, [h('span.circle-line', {
     style: { background: iconColor }
   }), entry.linkedDataTable.view()]);
