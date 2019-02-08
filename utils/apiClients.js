@@ -29,16 +29,17 @@ FOR v, e, p IN 1..100
     }
 `
 
-function fetchLinkedObjs (key, type) {
+function fetchLinkedObjs (key, options) {
+  console.log('options', options)
   const payload = {
     query: linkedQuery,
     obj_key: key,
     owners: false,
-    type,
+    type: options.type,
     show_private: true,
     show_public: true,
-    offset: 0,
-    results_limit: 30
+    offset: options.offset,
+    results_limit: options.limit
   }
   const token = window._env.authToken
   return aqlQuery(payload, token)
@@ -50,7 +51,6 @@ LET obj_id = CONCAT("wsprov_object/", @obj_key)
 FOR v, e, p in 1..100
   INBOUND obj_id wsprov_links, wsprov_copied_into
   OPTIONS {uniqueVertices: "global", bfs: true}
-  FILTER p.vertices[1].is_taxon != true
   FILTER (@show_private && @show_public) ? (v.is_public || v.workspace_id IN @ws_ids) :
       (!@show_private || v.workspace_id IN @ws_ids) && (!@show_public || v.is_public)
   COLLECT type = v.ws_type with count into type_count

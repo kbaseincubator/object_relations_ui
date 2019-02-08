@@ -4,40 +4,37 @@ const h = require('snabbdom/h').default
 // utils
 const icons = require('./utils/icons')
 const showIf = require('./utils/showIf')
-const { fetchHomologs, fetchTypeCounts, fetchLinkedObjs } = require('./utils/apiClients')
+const { fetchTypeCounts } = require('./utils/apiClients')
 const toObjKey = require('./utils/toObjKey')
-const toUpa = require('./utils/toUpa')
 
 // components
 const Component = require('./components/Component')
 const UpaForm = require('./components/UpaForm')
+const { HomologTable } = require('./components/HomologTable')
+const { LinkedDataTable } = require('./components/LinkedDataTable')
 
 function Page () {
   return Component({
     loading: 0,
     obj: {}, // workspace object
     upaForm: UpaForm(),
+    homologTable: HomologTable(),
     fetchUpa (upa) {
       this.obj.upa = upa
       this.loading = true
       this._render()
       const key = toObjKey(upa)
       console.log('upa', upa)
-      this.loadingHomologs = true
-      fetchHomologs(upa)
-        .then(resp => {
-          this.loadingHomologs = false
-          if (resp && resp.length) {
-            this.homologs = resp
-          } else {
-            this.homologs = null
-          }
-          this._render()
-        })
+      this.homologTable.fetch(upa)
       fetchTypeCounts(key, null)
         .then(resp => {
           if (resp.results && resp.results.length) {
             this.typeCounts = resp.results
+              // Initialize a LinkedDataTable for each type result
+              .map(entry => {
+                entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.type_count)
+                return entry
+              })
           } else {
             this.typeCounts = null
           }
@@ -51,27 +48,11 @@ function Page () {
         })
     },
     fetchTypeList (entry) {
-      const { type } = entry
-      entry.loading = true
+      // const { type } = entry
+      if (!entry.linkedDataTable.data || !entry.linkedDataTable.data.length) {
+        entry.linkedDataTable.fetchInitial()
+      }
       this._render()
-      fetchLinkedObjs(toObjKey(this.obj.upa), type)
-        .then(resp => {
-          entry.subdata = null
-          if (resp.results) {
-            entry.subdata = resp.results
-          } else if (resp.error) {
-            console.error(resp.error)
-          } else {
-          }
-          entry.loading = false
-          console.log('resp', resp)
-          this._render()
-        })
-        .catch(err => {
-          console.error(err)
-          entry.loading = false
-          this._render()
-        })
     },
     view
   })
@@ -83,21 +64,17 @@ function view () {
   const div = content => h('div.container.p2.max-width-3', content)
   return div([
     page.upaForm.view(),
-    showIf(page.loading, () => h('p.muted', 'Loading...')),
+    showIf(page.loading, () => h('p.muted.bold', 'Loading...')),
     showIf(page.error, () => h('p.error', page.error)),
-    showIf(page.typeCounts, () => typeHeaders(page)),
-    showIf(!page.loading && page.loadingHomologs, () => h('p.muted', 'Loading similar data...')),
-    showIf(page.homologs, () => homologTable(page)),
-    showIf(!page.loading && !page.loadingHomologs && !page.typeCounts && !page.homologs, () =>
-      h('p.muted', 'No results found')
-    )
+    h('div', {class: {faded: page.loading}}, [
+      showIf(page.typeCounts, () => typeHeaders(page)),
+      page.homologTable.view()
+    ])
   ])
 }
 
 function typeHeaders (page) {
-  return h('div', {
-    class: { faded: page.loading }
-  }, [
+  return h('div', [
     h('h2', 'Linked Data'),
     h('div', page.typeCounts.map(entry => {
       const { type_count: count, expanded } = entry
@@ -144,8 +121,7 @@ function typeDataSection (page, entry) {
     h('span.circle-line', {
       style: { background: iconColor }
     }),
-    showIf(entry.loading, () => h('p.muted.my2', 'Loading...')),
-    showIf(entry.subdata, () => dataTable(page, 'Objects', entry.subdata))
+    entry.linkedDataTable.view()
   ])
 }
 
@@ -162,73 +138,6 @@ function circleIcon (contents, isExpanded, background) {
   ])
 }
 
-function homologTable (page) {
-  return h('div', {
-    class: { faded: page.loading }
-  }, [
-    h('h2.mt3', 'Similar Genomes'),
-    h('table.table-lined', [
-      h('thead', [
-        h('tr', [
-          h('th', 'Distance'),
-          h('th', 'Name'),
-          h('th', 'Source')
-        ])
-      ]),
-      h('tbody', page.homologs.map(hom => {
-        const { kbase_id: kbaseid, dist, namespaceid, sciname, sourceid } = hom
-        const href = window._env.kbaseRoot + '/#dataview/' + kbaseid
-        return h('tr', [
-          h('td.bold', [
-            dist
-          ]),
-          h('td', [
-            h('a', { props: { href: href } }, sciname || sourceid)
-          ]),
-          h('td', [
-            namespaceid.replace(/_/g, ' ')
-          ])
-        ])
-      }))
-    ])
-  ])
-}
-
-function dataTable (page, title, data) {
-  console.log('data', data)
-  return h('div', {
-    class: {
-      faded: page.loading
-    }
-  }, [
-    h('table.table-lined', [
-      h('thead', [
-        h('tr', [
-          h('th', 'Name'),
-          h('th', 'Date'),
-          h('th', 'Creator'),
-          h('th', 'Narrative')
-        ])
-      ]),
-      h('tbody', data.map(({ path, vertex }) => {
-        const hrefs = objHrefs(vertex)
-        return h('tr', [
-          h('td', [
-            h('a', { props: { href: hrefs.obj } }, vertex.obj_name)
-          ]),
-          h('td', formatDate(vertex.save_date)),
-          h('td', [
-            h('a', { props: { href: hrefs.owner } }, vertex.owner)
-          ]),
-          h('td', [
-            h('a', { props: { href: hrefs.narrative } }, vertex.narr_name)
-          ])
-        ])
-      }))
-    ])
-  ])
-}
-
 // Convert something like "Module.Type-5.0" into just "Type"
 // Returns the input if we cannot match the format
 function typeName (typeStr) {
@@ -236,35 +145,6 @@ function typeName (typeStr) {
   if (!matches) return typeStr
   return matches[1]
 }
-
-// Generate KBase url links for an object
-function objHrefs (obj) {
-  const url = window._env.kbaseRoot
-  const dataview = url + '/#dataview/'
-  const typeUrl = url + '/#spec/type/'
-  const hrefs = {}
-  if (obj.ws_type) {
-    hrefs.type = typeUrl + obj.ws_type
-  }
-  if (obj.upa) {
-    hrefs.obj = dataview + obj.upa
-  } else if (obj._key) {
-    hrefs.obj = dataview + toUpa(obj._key)
-  }
-  if (obj.workspace_id) {
-    hrefs.narrative = `https://narrative.kbase.us/narrative/ws.${obj.workspace_id}.obj.1`
-  }
-  if (obj.owner) {
-    hrefs.owner = url + '/#people/' + obj.owner
-  }
-  return hrefs
-}
-
-function formatDate (str) {
-  const date = new Date(str)
-  return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear()
-}
-
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false)
 // Default app config -- overridden by postMessage handlers further below
