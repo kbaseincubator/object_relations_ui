@@ -27,11 +27,15 @@ function Page () {
       this.homologTable.fetch(upa)
       fetchTypeCounts(key, null)
         .then(resp => {
+          console.log('resp', resp)
           if (resp.results && resp.results.length) {
             this.typeCounts = resp.results
               // Initialize a LinkedDataTable for each type result
+              // Set other defaults
               .map(entry => {
                 entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.type_count)
+                entry.typeName = typeName(entry.type)
+                entry.typeVersion = entry.type.match(/(\d+\.\d+)$/)[0]
                 return entry
               })
           } else {
@@ -80,9 +84,10 @@ function typeHeaders (page) {
     h('h2.mt0', 'Linked Data'),
     h('div', page.typeCounts.map(entry => {
       const { type_count: count, expanded } = entry
-      const type = typeName(entry.type)
-      const iconColor = icons.colors[type]
-      const iconInitial = type.split('').filter(c => c === c.toUpperCase()).slice(0, 2).join('')
+      const iconColor = icons.colors[entry.typeName]
+      // Get the first two letters of the type for the icon
+      const iconInitial = entry.typeName
+        .split('').filter(c => c === c.toUpperCase()).slice(0, 2).join('')
       return h('div.relative.result-row.my2', [
         h('div.hover-parent', {
           on: {
@@ -102,7 +107,7 @@ function typeHeaders (page) {
               paddingLeft: '32px'
             }
           }, [
-            type, ' · ', h('span.muted', [ count, ' total' ])
+            entry.typeName, ' ', entry.typeVersion, ' · ', h('span.muted', [ count, ' total' ])
           ])
         ]),
         showIf(entry.expanded, () => typeDataSection(page, entry))
@@ -112,13 +117,9 @@ function typeHeaders (page) {
 }
 
 function typeDataSection (page, entry) {
-  const type = typeName(entry.type)
-  const iconColor = icons.colors[type]
-  console.log('entry.type, type, iconColor', entry.type, type, iconColor)
+  const iconColor = icons.colors[entry.typeName]
   return h('div.mb2.pt1.clearfix', {
-    style: {
-      paddingLeft: '32px'
-    }
+    style: { paddingLeft: '32px' }
   }, [
     h('span.circle-line', {
       style: { background: iconColor }
