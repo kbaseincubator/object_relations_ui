@@ -101,11 +101,9 @@ function view() {
   }))]), showIf(!this.hasMore, function () {
     return h('p.muted', 'No more results.');
   }), showIf(this.hasMore, function () {
-    return h('button.btn.mt2', {
-      on: { click: function () {
+    return h('div', [h('button.btn.mt2', { on: { click: function () {
           return _this2.nextPage();
-        } }
-    }, ['Show more ', '(', _this2.hiddenData.length, ' left)']);
+        } } }, ['Load more ']), h('span.muted.inline-block.ml1', [_this2.hiddenData.length, ' left'])]);
   })]);
 }
 },{"../utils/apiClients":19,"../utils/showIf":23,"./Component.js":1,"snabbdom/h":7}],3:[function(require,module,exports){
@@ -210,12 +208,12 @@ function view() {
     var hrefs = objHrefs(vertex);
     return h('tr', [h('td', [h('a', { props: { href: hrefs.obj } }, vertex.obj_name)]), h('td', formatDate(vertex.save_date)), h('td', [h('a', { props: { href: hrefs.owner } }, vertex.owner)]), h('td', [h('a', { props: { href: hrefs.narrative } }, vertex.narr_name)])]);
   }))]), showIf(this.hasMore, function () {
-    return h('button.btn.mt2', {
+    return h('div', [h('button.btn.mt2', {
       on: { click: function () {
           return _this3.fetchNext();
         } },
       props: { disabled: _this3.loadingMore }
-    }, [showIf(_this3.loadingMore, 'Loading...'), showIf(!_this3.loadingMore, 'Load more results (' + (_this3.totalCount - _this3.data.length) + ' left)')]);
+    }, [showIf(_this3.loadingMore, 'Loading...'), showIf(!_this3.loadingMore, 'Load more')]), h('span.muted.inline-block.ml1', [_this3.totalCount - _this3.data.length, ' left'])]);
   }), showIf(!this.hasMore, function () {
     return h('p.muted', 'No more results');
   })]);
@@ -380,7 +378,7 @@ function typeHeaders(page) {
     // Get the first two letters of the type for the icon
     var iconInitial = entry.typeName.split('').filter(function (c) {
       return c === c.toUpperCase();
-    }).slice(0, 2).join('');
+    }).slice(0, 3).join('');
     return h('div.relative.result-row.my2', [h('div.hover-parent', {
       on: {
         click: function () {
@@ -393,9 +391,7 @@ function typeHeaders(page) {
         }
       }
     }, [circleIcon(iconInitial, expanded, iconColor), h('h4.inline-block.m0', {
-      style: {
-        paddingLeft: '32px'
-      }
+      style: { paddingLeft: '38px' }
     }, [entry.typeName, ' ', entry.typeVersion, ' · ', h('span.muted', [count, ' total'])])]), showIf(entry.expanded, function () {
       return typeDataSection(page, entry);
     })]);
@@ -405,7 +401,7 @@ function typeHeaders(page) {
 function typeDataSection(page, entry) {
   var iconColor = icons.colors[entry.typeName];
   return h('div.mb2.pt1.clearfix', {
-    style: { paddingLeft: '32px' }
+    style: { paddingLeft: '38px' }
   }, [h('span.circle-line', {
     style: { background: iconColor }
   }), entry.linkedDataTable.view()]);
