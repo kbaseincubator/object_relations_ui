@@ -51,6 +51,9 @@ function HomologTable () {
 }
 
 function view () {
+  if (this.loading) {
+    return h('p.muted', 'Loading homologs...')
+  }
   if (!this.displayedData || !this.displayedData.length) {
     return h('div', '')
   }
@@ -74,7 +77,7 @@ function view () {
             dist
           ]),
           h('td', [
-            h('a', { props: { href: href } }, sciname || sourceid)
+            h('a', { props: { href, target: '_blank' } }, sciname || sourceid)
           ]),
           h('td', [
             namespaceid.replace(/_/g, ' ')
