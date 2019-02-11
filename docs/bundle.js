@@ -84,6 +84,9 @@ function HomologTable() {
 function view() {
   var _this2 = this;
 
+  if (this.loading) {
+    return h('p.muted', 'Loading homologs...');
+  }
   if (!this.displayedData || !this.displayedData.length) {
     return h('div', '');
   }
@@ -97,7 +100,7 @@ function view() {
         sourceid = hom.sourceid;
 
     var href = window._env.kbaseRoot + '/#dataview/' + kbaseid;
-    return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href } }, sciname || sourceid)]), h('td', [namespaceid.replace(/_/g, ' ')])]);
+    return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href, target: '_blank' } }, sciname || sourceid)]), h('td', [namespaceid.replace(/_/g, ' ')])]);
   }))]), showIf(!this.hasMore, function () {
     return h('p.muted', 'No more results.');
   }), showIf(this.hasMore, function () {
