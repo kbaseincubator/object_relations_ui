@@ -1,7 +1,7 @@
 * {
   font-family: Oxygen, Helvetica, Arial, sans-serif;
   color: #444;
-  border-color: #aaa;
+  border-color: #d4d4d4;
 }
 h1, h2, h3, h4, h5, h6 {
   font-weight: 900;
@@ -125,21 +125,21 @@ fieldset {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.text-ellipsis-18rem {
+.text-ellipsis {
   display: inline-block;
-  max-width: 18rem;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
   white-space: nowrap;
 }
-.text-ellipsis-12rem {
-  display: inline-block;
+.mw-36rem {
+  max-width: 36rem;
+}
+.mw-18rem {
+  max-width: 18rem;
+}
+.mw-12rem {
   max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
-  white-space: nowrap;
 }
 .h3-5 { /* h3.5 :p */
   font-size: 1.1rem;
@@ -173,6 +173,13 @@ a[target="_blank"]::after {
   opacity: 0.5;
 }
 
+.color-devil {
+  color: #666;
+}
+.light-border {
+  color: #e1e1e1;
+}
+
 /** Tables **/
 .table-lined {
   border-collapse: collapse;
@@ -194,6 +201,26 @@ a[target="_blank"]::after {
 .table-lined tbody tr:hover {
   background-color: #eee;
 }
+.table-lined tbody tr.expandable {
+  cursor: pointer;
+}
+.table-lined tbody tr.expandable:hover td {
+  color: #2a72b4;
+}
+.table-lined tbody tr.expandable-sibling {
+  display: none;
+}
+.table-lined tbody tr.expanded-sibling {
+  background: #eee;
+  display: table-row;
+}
+.table-lined tbody tr.expanded {
+  background-color: #dedede;
+  border-top: 1px solid #aaa;
+}
+.table-lined tbody tr.expanded td {
+  font-weight: bold;
+}
 .table-lined th {
   text-align: left;
   position: sticky;
@@ -207,6 +234,18 @@ a[target="_blank"]::after {
   bottom: 0;
   width: 100%;
   border-bottom: 1px solid #bbb;
+}
+.expand-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 20px;
+  background: white;
+  text-align: center;
+  margin-left: 0.25rem;
+  font-weight: bold;
+  font-size: 18px;
+  line-height: 1;
 }
 /** /Tables **/
 

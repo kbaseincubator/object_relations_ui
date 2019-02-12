@@ -5,12 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "budo index.js:bundle.js --live --verbose --open",
+    "start": "budo index.js:bundle.js --verbose --live",
     "build": "browserify index.js -t es2040 > docs/bundle.js && cp index.html docs/index.html && cp index.css docs/index.css"
   },
   "author": "jayrbolton",
   "license": "MIT",
   "devDependencies": {
+    "browserify-hmr": "^0.3.7",
     "budo": "^11.5.0",
     "es2040": "^1.2.6",
     "standard": "^12.0.1"

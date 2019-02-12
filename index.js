@@ -6,6 +6,7 @@ const icons = require('./utils/icons')
 const showIf = require('./utils/showIf')
 const { fetchTypeCounts } = require('./utils/apiClients')
 const toObjKey = require('./utils/toObjKey')
+const typeName = require('./utils/typeName')
 
 // components
 const Component = require('./components/Component')
@@ -152,13 +153,6 @@ function circleIcon (contents, isExpanded, background) {
   ])
 }
 
-// Convert something like "Module.Type-5.0" into just "Type"
-// Returns the input if we cannot match the format
-function typeName (typeStr) {
-  const matches = typeStr.match(/^.+\.(.+)-.+$/)
-  if (!matches) return typeStr
-  return matches[1]
-}
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false)
 // Default app config -- overridden by postMessage handlers further below
