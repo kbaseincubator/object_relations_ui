@@ -119,6 +119,7 @@ var _require = require('../utils/apiClients'),
 var objHrefs = require('../utils/objHrefs');
 var formatDate = require('../utils/formatDate');
 var showIf = require('../utils/showIf');
+var typeName = require('../utils/typeName');
 
 module.exports = { LinkedDataTable: LinkedDataTable };
 
@@ -129,7 +130,7 @@ function LinkedDataTable(objKey, type, count) {
     obj_key: objKey,
     data: [],
     page: 0,
-    limit: 30,
+    limit: 20,
     loading: false,
     loadingMore: false,
     fetchInitial: function () {
@@ -205,13 +206,68 @@ function view() {
   if (!this.data || !this.data.length) {
     return h('p.muted', 'No linked data');
   }
-  return h('div', [h('table.table-lined', [h('thead', [h('tr', [h('th', 'Name'), h('th', 'Date'), h('th', 'Creator'), h('th', 'Narrative')])]), h('tbody', this.data.map(function (_ref) {
-    var path = _ref.path,
-        vertex = _ref.vertex;
+  var tableRows = [];
+  var nCols = 5;
 
+  var _loop = function (i) {
+    var _data$i = _this3.data[i],
+        typePath = _data$i.type_path,
+        vertex = _data$i.vertex,
+        expanded = _data$i.expanded;
+
+    var formattedPath = typePath.map(typeName);
+    formattedPath[0] += ' (this)';
+    formattedPath = formattedPath.join(' 🡒 ');
+    var dataRow = h('tr.expandable', {
+      class: { expanded: expanded },
+      on: {
+        click: function () {
+          _this3.data[i].expanded = !_this3.data[i].expanded;
+          _this3._render();
+        }
+      }
+    }, [h('td', [h('span.expand-icon', expanded ? '−' : '+')]), h('td', [vertex.obj_name
+    // h('a', { props: { href: hrefs.obj } }, vertex.obj_name)
+    ]), h('td', formatDate(vertex.save_date)), h('td', [vertex.owner
+    // h('a', { props: { href: hrefs.owner } }, vertex.owner)
+    ]), h('td', [vertex.narr_name
+    // h('a', { props: { href: hrefs.narrative } }, vertex.narr_name)
+    ])]);
     var hrefs = objHrefs(vertex);
-    return h('tr', [h('td', [h('a', { props: { href: hrefs.obj } }, vertex.obj_name)]), h('td', formatDate(vertex.save_date)), h('td', [h('a', { props: { href: hrefs.owner } }, vertex.owner)]), h('td', [h('a', { props: { href: hrefs.narrative } }, vertex.narr_name)])]);
-  }))]), showIf(this.hasMore, function () {
+    var detailsRow = h('tr.expandable-sibling', {
+      class: {
+        'expanded-sibling': expanded
+      }
+    }, [h('td', { props: { colSpan: nCols } }, [h('div.p1', {
+      style: {
+        overflow: 'auto',
+        whiteSpace: 'normal'
+      }
+    }, [h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Object'), h('a.inline-block.right.text-ellipsis.mw-36rem', {
+      props: {
+        href: hrefs.obj,
+        target: '_blank'
+      }
+    }, vertex.obj_name)]), h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Save date'), h('span.inline-block.right.text-ellipsis.mw-36rem', formatDate(vertex.save_date))]), h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Data Type'), h('a.inline-block.right.text-ellipsis.mw-36rem', {
+      props: {
+        href: hrefs.type,
+        target: '_blank'
+      }
+    }, vertex.ws_type)]), h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Narrative'), h('a.inline-block.right.text-ellipsis.mw-36rem', {
+      props: {
+        href: hrefs.narrative,
+        target: '_blank'
+      }
+    }, vertex.narr_name)]), h('p.m0.py1', [h('span.bold.color-devil', 'Path to object'), h('span.inline-block.right.text-ellipsis.mw-36rem', formattedPath)])])])]);
+
+    tableRows.push(dataRow);
+    tableRows.push(detailsRow);
+  };
+
+  for (var i = 0; i < this.data.length; ++i) {
+    _loop(i);
+  }
+  return h('div', [h('table.table-lined', [h('thead', [h('tr', [h('th', ''), h('th', 'Name'), h('th', 'Date'), h('th', 'Creator'), h('th', 'Narrative')])]), h('tbody', tableRows)]), showIf(this.hasMore, function () {
     return h('div', [h('button.btn.mt2', {
       on: { click: function () {
           return _this3.fetchNext();
@@ -222,7 +278,7 @@ function view() {
     return h('p.muted', 'No more results');
   })]);
 }
-},{"../utils/apiClients":19,"../utils/formatDate":20,"../utils/objHrefs":22,"../utils/showIf":23,"./Component.js":1,"snabbdom/h":7}],4:[function(require,module,exports){
+},{"../utils/apiClients":19,"../utils/formatDate":20,"../utils/objHrefs":22,"../utils/showIf":23,"../utils/typeName":26,"./Component.js":1,"snabbdom/h":7}],4:[function(require,module,exports){
 var serialize = require('form-serialize');
 var h = require('snabbdom/h').default;
 var Component = require('./Component');
@@ -297,6 +353,7 @@ var _require = require('./utils/apiClients'),
     fetchTypeCounts = _require.fetchTypeCounts;
 
 var toObjKey = require('./utils/toObjKey');
+var typeName = require('./utils/typeName');
 
 // components
 var Component = require('./components/Component');
@@ -431,13 +488,6 @@ function circleIcon(contents, isExpanded, background) {
   }, [h('span.hover-hide', [contents]), h('span.hover-arrow.hover-inline-block', isExpanded ? '−' : '+')]);
 }
 
-// Convert something like "Module.Type-5.0" into just "Type"
-// Returns the input if we cannot match the format
-function typeName(typeStr) {
-  var matches = typeStr.match(/^.+\.(.+)-.+$/);
-  if (!matches) return typeStr;
-  return matches[1];
-}
 // This UI is used in an iframe, so we receive post messages from a parent window
 window.addEventListener('message', receiveMessage, false);
 // Default app config -- overridden by postMessage handlers further below
@@ -481,7 +531,7 @@ window._messageHandlers = {
 
   // -- Render the page component
 };document.body.appendChild(document._page._render().elm);
-},{"./components/Component":1,"./components/HomologTable":2,"./components/LinkedDataTable":3,"./components/UpaForm":4,"./utils/apiClients":19,"./utils/icons":21,"./utils/showIf":23,"./utils/toObjKey":24,"snabbdom/h":7}],6:[function(require,module,exports){
+},{"./components/Component":1,"./components/HomologTable":2,"./components/LinkedDataTable":3,"./components/UpaForm":4,"./utils/apiClients":19,"./utils/icons":21,"./utils/showIf":23,"./utils/toObjKey":24,"./utils/typeName":26,"snabbdom/h":7}],6:[function(require,module,exports){
 // get successful control from form and assemble into object
 // http://www.w3.org/TR/html401/interact/forms.html#h-17.13.2
 
@@ -1682,7 +1732,7 @@ module.exports = formatDate;
 
 function formatDate(str) {
   var date = new Date(str);
-  return date.getMonth() + 1 + '/' + date.getDate() + '/' + date.getFullYear();
+  return date.toLocaleDateString('en-US');
 }
 },{}],21:[function(require,module,exports){
 var colorMapping = {
@@ -1791,4 +1841,15 @@ module.exports = function (upa) {
 module.exports = function (key) {
   return key.replace(/:/g, '/');
 };
+},{}],26:[function(require,module,exports){
+
+module.exports = typeName;
+
+// Convert something like "Module.Type-5.0" into just "Type"
+// Returns the input if we cannot match the format
+function typeName(typeStr) {
+  var matches = typeStr.match(/^.+\.(.+)-.+$/);
+  if (!matches) return typeStr;
+  return matches[1];
+}
 },{}]},{},[5]);
