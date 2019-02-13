@@ -142,11 +142,11 @@ function view () {
             }, vertex.obj_name)
           ]),
           h('p.m0.py1.border-bottom.light-border', [
-            h('span.bold.color-devil', 'Saved'),
-            h('span.inline-block.right.text-ellipsis.mw-36rem', vertex.save_date)
+            h('span.bold.color-devil', 'Save date'),
+            h('span.inline-block.right.text-ellipsis.mw-36rem', formatDate(vertex.save_date))
           ]),
           h('p.m0.py1.border-bottom.light-border', [
-            h('span.bold.color-devil', 'Type'),
+            h('span.bold.color-devil', 'Data Type'),
             h('a.inline-block.right.text-ellipsis.mw-36rem', {
               props: {
                 href: hrefs.type,
