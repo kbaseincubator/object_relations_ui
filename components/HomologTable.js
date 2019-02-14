@@ -8,19 +8,48 @@ module.exports = { HomologTable }
 function HomologTable () {
   return Component({
     upa: null,
-    hiddenData: [],
-    displayedData: [],
-    currentPage: 0,
+    data: [],
+    currentPage: 1,
     pageSize: 50,
+    sortable: { 'Knowledge Score': true },
+    sortCol: 'Distance',
+    sortDir: 'asc',
     loading: false,
     hasMore: false,
+    // Functions for sorting each column in the results
+    sortBy: {
+      'Distance': {
+        fn: (x, y) => sortBy(Number(x.dist), Number(y.dist))
+      },
+      'Name': {
+        fn: (x, y) => sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid)
+      },
+      'Knowledge Score': {
+        fn: (x, y) => sortBy(Number(x.knowledge_score), Number(y.knowledge_score))
+      },
+      'Source': {
+        fn: (x, y) => sortBy(x.source, y.source)
+      }
+    },
+    sortByColumn (colName) {
+      const alreadySorting = this.sortCol === colName
+      if (alreadySorting && this.sortDir === 'asc') {
+        this.sortDir = 'desc'
+      } else {
+        this.sortDir = 'asc'
+        this.sortCol = colName
+      }
+      if (this.sortCol) {
+        let sorter = this.sortBy[colName].fn
+        if (this.sortDir === 'desc') sorter = reverse(sorter)
+        this.data.sort(sorter)
+      }
+      this._render()
+    },
     nextPage () {
       if (!this.hasMore) return
-      const nextPage = this.hiddenData.slice(0, this.pageSize)
-      this.displayedData = this.displayedData.concat(nextPage)
-      this.hiddenData = this.hiddenData.slice(this.pageSize)
-      this.hasMore = this.hiddenData.length > 0
       this.currentPage += 1
+      this.hasMore = (this.currentPage * this.pageSize) < this.data.length
       this._render()
     },
     fetch (upa) {
@@ -29,13 +58,12 @@ function HomologTable () {
       fetchHomologs(this.upa)
         .then(resp => {
           this.loading = false
-          this.currentPage = 0
+          this.currentPage = 1
           if (resp && resp.length) {
-            this.displayedData = resp.slice(0, this.pageSize)
-            this.hiddenData = resp.slice(this.pageSize)
-            this.hasMore = this.hiddenData.length > 0
+            this.data = resp
+            this.hasMore = this.data.length > this.pageSize
           } else {
-            this.homologs = null
+            this.data = []
             this.hasMore = false
           }
           this._render()
@@ -51,46 +79,91 @@ function HomologTable () {
 }
 
 function view () {
-  if (this.loading) {
+  const table = this
+  if (table.loading) {
     return h('p.muted', 'Loading homologs...')
   }
-  if (!this.displayedData || !this.displayedData.length) {
+  if (!table.data || !table.data.length) {
     return h('div', '')
   }
-  return h('div', {
-    class: { faded: this.loading }
-  }, [
+  const displayedCount = table.currentPage * table.pageSize
+  console.log('count', displayedCount)
+  const tableRows = []
+  for (let i = 0; i < displayedCount && i < table.data.length; ++i) {
+    tableRows.push(resultRow(table, table.data[i]))
+  }
+  return h('div', [
     h('h2.mt3', 'Similar Genomes'),
     h('table.table-lined', [
       h('thead', [
         h('tr', [
-          h('th', 'Distance'),
-          h('th', 'Name'),
-          h('th', 'Source')
+          th(table, 'Distance'),
+          th(table, 'Name'),
+          th(table, 'Knowledge Score'),
+          th(table, 'Source')
         ])
       ]),
-      h('tbody', this.displayedData.map(hom => {
-        const { kbase_id: kbaseid, dist, namespaceid, sciname, sourceid } = hom
-        const href = window._env.kbaseRoot + '/#dataview/' + kbaseid
-        return h('tr', [
-          h('td.bold', [
-            dist
-          ]),
-          h('td', [
-            h('a', { props: { href, target: '_blank' } }, sciname || sourceid)
-          ]),
-          h('td', [
-            namespaceid.replace(/_/g, ' ')
-          ])
-        ])
-      }))
+      h('tbody', tableRows)
     ]),
-    showIf(!this.hasMore, () => h('p.muted', 'No more results.')),
-    showIf(this.hasMore, () =>
-      h('div', [
-        h('button.btn.mt2', { on: { click: () => this.nextPage() } }, [ 'Load more ' ]),
-        h('span.muted.inline-block.ml1', [this.hiddenData.length, ' left'])
+    showIf(!table.hasMore, () => h('p.muted', 'No more results.')),
+    showIf(table.hasMore, () => {
+      const remaining = table.data.length - (this.currentPage * this.pageSize)
+      return h('div', [
+        h('button.btn.mt2', { on: { click: () => table.nextPage() } }, [ 'Load more ' ]),
+        h('span.muted.inline-block.ml1', [remaining, ' left'])
       ])
-    )
+    })
   ])
+}
+
+function resultRow (table, result) {
+  const { kbase_id: kbaseid, dist, namespaceid, sciname, sourceid } = result
+  const href = window._env.kbaseRoot + '/#dataview/' + kbaseid
+  return h('tr', [
+    h('td.bold', [
+      dist
+    ]),
+    h('td', [
+      h('a', { props: { href, target: '_blank' } }, sciname || sourceid)
+    ]),
+    h('td', [
+      result.knowledge_score || 1
+    ]),
+    h('td', [
+      namespaceid.replace(/_/g, ' ')
+    ])
+  ])
+}
+
+function th (table, txt) {
+  const isSorting = table.sortCol === txt
+  return h('th.sortable', {
+    class: { sorting: isSorting },
+    on: {
+      click: () => { table.sortByColumn(txt) }
+    }
+  }, [
+    h('span', [ txt ]),
+    showIf(isSorting, () => {
+      return h('span.arrow.inline-block.ml1', {
+        class: {
+          'arrow-down': table.sortDir === 'asc',
+          'arrow-up': table.sortDir === 'desc'
+        }
+      })
+    })
+  ])
+}
+
+function sortBy (x, y) {
+  if (x > y) return 1
+  if (x < y) return -1
+  return 0
+}
+
+function reverse (fn) {
+  return function (x, y) {
+    const result = fn(x, y)
+    return -result
+  }
 }

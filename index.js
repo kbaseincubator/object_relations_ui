@@ -77,9 +77,8 @@ function view () {
   }
   return div([
     page.upaForm.view(),
-    showIf(page.loading, () => h('p.muted.bold', 'Loading...')),
     showIf(page.error, () => h('p.error', page.error)),
-    h('div', {class: {faded: page.loading}}, [
+    h('div', [
       typeHeaders(page),
       page.homologTable.view()
     ])
@@ -87,12 +86,11 @@ function view () {
 }
 
 function typeHeaders (page) {
+  if (page.loading) {
+    return h('p.muted', 'Searching for linked data...')
+  }
   if (!page.typeCounts || !page.typeCounts.length) {
-    if (page.loading) {
-      return h('p.muted', 'Searching for linked data...')
-    } else {
-      return h('p.muted', 'No linked data results.')
-    }
+    return h('p.muted', 'No linked data results.')
   }
   return h('div', [
     h('h2.mt0', 'Linked Data'),

@@ -166,12 +166,6 @@ fieldset {
 .small {
   font-size: 0.9rem;
 }
-/* New tab link with icon */
-a[target="_blank"]::after {
-  content: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAQElEQVR42qXKwQkAIAxDUUdxtO6/RBQkQZvSi8I/pL4BoGw/XPkh4XigPmsUgh0626AjRsgxHTkUThsG2T/sIlzdTsp52kSS1wAAAABJRU5ErkJggg==);
-  margin: 0 3px 0 5px;
-  opacity: 0.5;
-}
 
 .color-devil {
   color: #666;
@@ -226,6 +220,11 @@ a[target="_blank"]::after {
   position: sticky;
   top: 0px;
   background: white;
+  position: relative;
+}
+.table-lined th,
+.table-lined th * {
+  color: #666;
 }
 .table-lined th:after {
   content: '';
@@ -247,7 +246,32 @@ a[target="_blank"]::after {
   font-size: 18px;
   line-height: 1;
 }
+.table-lined th.sortable {
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+.table-lined th.sortable.sorting,
+.table-lined th.sortable.sorting * {
+  color: black;
+}
 /** /Tables **/
+
+/** Arrows **/
+.arrow {
+  border: solid #666;
+  border-width: 0 3px 3px 0;
+  display: inline-block;
+  padding: 3px;
+}
+.arrow-down {
+  transform: rotate(45deg);
+  -webkit-transform: rotate(45deg);
+  margin-bottom: 4px;
+}
+.arrow-up {
+  transform: rotate(-135deg);
+  -webkit-transform: rotate(-135deg);
+}
 
 /** Forms **/
 .checkbox {
