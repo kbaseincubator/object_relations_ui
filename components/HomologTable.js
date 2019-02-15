@@ -23,7 +23,11 @@ function HomologTable () {
     sorters: {
       'Distance': (x, y) => sortBy(Number(x.dist), Number(y.dist)),
       'Name': (x, y) => sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid),
-      'Knowledge Score': (x, y) => sortBy(Number(x.knowledge_score), Number(y.knowledge_score)),
+      'Knowledge Score': (x, y) => {
+        const scorex = isNaN(x.knowledge_score) ? 0 : Number(x.knowledge_score)
+        const scorey = isNaN(y.knowledge_score) ? 0 : Number(y.knowledge_score)
+        return sortBy(scorex, scorey)
+      },
       'Source': (x, y) => sortBy(x.source, y.source)
     },
     sortByColumn (colName) {
@@ -74,8 +78,11 @@ function HomologTable () {
         })
         .then(resp => {
           if (resp && resp.results && resp.results.length) {
-            resp.results.forEach((score, idx) => {
-              this.data[idx].knowledge_score = score
+            resp.results.forEach((result, idx) => {
+              const score = Number(result.knowledge_score)
+              const resultKey = result.key
+              this.data.filter(d => toObjKey(d.kbase_id) === resultKey)
+                .forEach(d => { d.knowledge_score = score })
             })
             this._render()
           }
@@ -99,13 +106,12 @@ function view () {
     return h('div', '')
   }
   const displayedCount = table.currentPage * table.pageSize
-  console.log('count', displayedCount)
   const tableRows = []
   for (let i = 0; i < displayedCount && i < table.data.length; ++i) {
     tableRows.push(resultRow(table, table.data[i]))
   }
   return h('div', [
-    h('h2.mt3', 'Similar Genomes'),
+    h('h2.mt3', 'Similar Assemblies'),
     h('table.table-lined', [
       h('thead', [
         h('tr', [
@@ -139,7 +145,7 @@ function resultRow (table, result) {
       h('a', { props: { href, target: '_blank' } }, sciname || sourceid)
     ]),
     h('td', [
-      isNaN(result.knowledge_score) ? '...' : result.knowledge_score
+      isNaN(result.knowledge_score) ? '' : result.knowledge_score
     ]),
     h('td', [
       namespaceid.replace(/_/g, ' ')
