@@ -1,10 +1,9 @@
-module.exports = { fetchLinkedObjs, fetchHomologs, fetchTypeCounts }
+module.exports = { fetchLinkedObjs, fetchHomologs, fetchTypeCounts, fetchKnowledgeScores }
 
 // Outbound linked data are objects that our current object has led to the creation of
 // Inbound linked data are objects that our current object is created from
 
 function fetchLinkedObjs (key, options) {
-  console.log('options', options)
   const payload = {
     obj_key: key,
     owners: false,
@@ -14,18 +13,26 @@ function fetchLinkedObjs (key, options) {
     offset: options.offset,
     results_limit: options.limit
   }
-  const token = window._env.authToken
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' })
+  return aqlQuery(payload, { view: 'wsprov_fetch_linked_objects' })
+}
+
+function fetchKnowledgeScores (ids) {
+  const payload = {
+    obj_ids: ids,
+    prop: 'knowledge_score'
+  }
+  return aqlQuery(payload, { view: 'wsprov_fetch_obj_field' })
 }
 
 function fetchTypeCounts (key) {
   const payload = {
     obj_key: key,
-    show_public: true,
-    show_private: true
+    owners: false,
+    type: false,
+    show_private: true,
+    show_public: true
   }
-  const token = window._env.authToken
-  return aqlQuery(payload, token, { view: 'wsprov_count_linked_object_types' })
+  return aqlQuery(payload, { view: 'wsprov_count_linked_object_types' })
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
@@ -55,10 +62,10 @@ function fetchHomologs (upa, token) {
 }
 
 // Make a request to the relation engine api to do an ad-hoc admin query for prototyping
-function aqlQuery (payload, token, params) {
+function aqlQuery (payload, params) {
+  const token = window._env.authToken
   const apiUrl = window._env.relEngURL.replace(/\/$/, '') // remove trailing slash
   const url = apiUrl + '/api/query_results/' + queryify(params)
-  console.log({ url })
   const headers = {}
   if (token) headers.Authorization = token
   return window.fetch(url, {

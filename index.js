@@ -7,6 +7,7 @@ const showIf = require('./utils/showIf')
 const { fetchTypeCounts } = require('./utils/apiClients')
 const toObjKey = require('./utils/toObjKey')
 const typeName = require('./utils/typeName')
+const sortBy = require('./utils/sortBy')
 
 // components
 const Component = require('./components/Component')
@@ -30,15 +31,15 @@ function Page () {
       this.homologTable.fetch(upa)
       fetchTypeCounts(key, null)
         .then(resp => {
-          console.log('resp', resp)
           if (resp.results && resp.results.length) {
-            this.typeCounts = resp.results
+            this.typeCounts = mergeTypeCounts(resp.results[0].inb || {}, resp.results[0].out || {})
+            this.typeCounts = this.typeCounts
               // Initialize a LinkedDataTable for each type result
               // Set other defaults
               .map(entry => {
-                entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.type_count)
-                entry.typeName = typeName(entry.type)
+                entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.count)
                 entry.typeVersion = entry.type.match(/(\d+\.\d+)$/)[0]
+                entry.typeName = typeName(entry.type)
                 return entry
               })
           } else {
@@ -95,7 +96,7 @@ function typeHeaders (page) {
   return h('div', [
     h('h2.mt0', 'Linked Data'),
     h('div', page.typeCounts.map(entry => {
-      const { type_count: count, expanded } = entry
+      const { count, expanded } = entry
       const iconColor = icons.colors[entry.typeName]
       // Get the first two letters of the type for the icon
       const iconInitial = entry.typeName
@@ -180,6 +181,23 @@ function receiveMessage (ev) {
     return
   }
   window._messageHandlers[data.method](data.params)
+}
+
+function mergeTypeCounts (inb, out) {
+  // Convert inbound and outbound counts into a single merged object of simple type names
+  const all = inb.concat(out)
+    .map(t => ({ type: t.type, count: t.type_count }))
+  const allObj = {}
+  all.forEach(t => {
+    allObj[t.type] = allObj[t.type] || 0
+    allObj[t.type] += t.count
+  })
+  // Convert back to an array, sorted by type name
+  const sorted = []
+  for (let name in allObj) {
+    sorted.push({ type: name, count: allObj[name] })
+  }
+  return sorted.sort((x, y) => sortBy(x.type, y.type))
 }
 
 // Handle post message methods

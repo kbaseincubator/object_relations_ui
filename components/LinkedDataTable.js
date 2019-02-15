@@ -28,8 +28,8 @@ function LinkedDataTable (objKey, type, count) {
           this.loading = false
           this.data = null
           this.hasMore = false
-          if (resp.results) {
-            this.data = resp.results
+          if (resp.results && resp.results.length) {
+            this.data = resp.results[0]
             if (this.data.length < this.totalCount) {
               this.hasMore = true
             }
@@ -91,8 +91,8 @@ function view () {
   let tableRows = []
   const nCols = 5
   for (let i = 0; i < this.data.length; ++i) {
-    const { type_path: typePath, vertex, expanded } = this.data[i]
-    let formattedPath = typePath.map(typeName)
+    const { path, vertex, expanded } = this.data[i]
+    let formattedPath = path.vertices.map(v => typeName(v.ws_type))
     formattedPath[0] += ' (this)'
     formattedPath = formattedPath.join(' 🡒 ')
     const dataRow = h('tr.expandable', {

@@ -1,7 +1,9 @@
 const Component = require('./Component.js')
 const h = require('snabbdom/h').default
-const { fetchHomologs } = require('../utils/apiClients')
+const { fetchHomologs, fetchKnowledgeScores } = require('../utils/apiClients')
 const showIf = require('../utils/showIf')
+const toObjKey = require('../utils/toObjKey')
+const sortBy = require('../utils/sortBy')
 
 module.exports = { HomologTable }
 
@@ -10,26 +12,19 @@ function HomologTable () {
     upa: null,
     data: [],
     currentPage: 1,
-    pageSize: 50,
+    pageSize: 30,
     sortable: { 'Knowledge Score': true },
     sortCol: 'Distance',
     sortDir: 'asc',
     loading: false,
     hasMore: false,
     // Functions for sorting each column in the results
-    sortBy: {
-      'Distance': {
-        fn: (x, y) => sortBy(Number(x.dist), Number(y.dist))
-      },
-      'Name': {
-        fn: (x, y) => sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid)
-      },
-      'Knowledge Score': {
-        fn: (x, y) => sortBy(Number(x.knowledge_score), Number(y.knowledge_score))
-      },
-      'Source': {
-        fn: (x, y) => sortBy(x.source, y.source)
-      }
+    // see the sortBy function below, and the docs for Array.sort on MDN
+    sorters: {
+      'Distance': (x, y) => sortBy(Number(x.dist), Number(y.dist)),
+      'Name': (x, y) => sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid),
+      'Knowledge Score': (x, y) => sortBy(Number(x.knowledge_score), Number(y.knowledge_score)),
+      'Source': (x, y) => sortBy(x.source, y.source)
     },
     sortByColumn (colName) {
       const alreadySorting = this.sortCol === colName
@@ -40,7 +35,7 @@ function HomologTable () {
         this.sortCol = colName
       }
       if (this.sortCol) {
-        let sorter = this.sortBy[colName].fn
+        let sorter = this.sorters[colName]
         if (this.sortDir === 'desc') sorter = reverse(sorter)
         this.data.sort(sorter)
       }
@@ -67,6 +62,23 @@ function HomologTable () {
             this.hasMore = false
           }
           this._render()
+          return this.data
+        })
+        .then(data => {
+          if (data && data.length) {
+            const ids = data.map(d => d.kbase_id).filter(Boolean)
+              .map(toObjKey)
+              .map(key => 'wsprov_object/' + key)
+            return fetchKnowledgeScores(ids)
+          }
+        })
+        .then(resp => {
+          if (resp && resp.results && resp.results.length) {
+            resp.results.forEach((score, idx) => {
+              this.data[idx].knowledge_score = score
+            })
+            this._render()
+          }
         })
         .catch(err => {
           console.error(err)
@@ -127,7 +139,7 @@ function resultRow (table, result) {
       h('a', { props: { href, target: '_blank' } }, sciname || sourceid)
     ]),
     h('td', [
-      result.knowledge_score || 1
+      isNaN(result.knowledge_score) ? '...' : result.knowledge_score
     ]),
     h('td', [
       namespaceid.replace(/_/g, ' ')
@@ -153,12 +165,6 @@ function th (table, txt) {
       })
     })
   ])
-}
-
-function sortBy (x, y) {
-  if (x > y) return 1
-  if (x < y) return -1
-  return 0
 }
 
 function reverse (fn) {
