@@ -29,28 +29,61 @@ var Component = require('./Component.js');
 var h = require('snabbdom/h').default;
 
 var _require = require('../utils/apiClients'),
-    fetchHomologs = _require.fetchHomologs;
+    fetchHomologs = _require.fetchHomologs,
+    fetchKnowledgeScores = _require.fetchKnowledgeScores;
 
 var showIf = require('../utils/showIf');
+var toObjKey = require('../utils/toObjKey');
+var sortBy = require('../utils/sortBy');
 
 module.exports = { HomologTable: HomologTable };
 
 function HomologTable() {
   return Component({
     upa: null,
-    hiddenData: [],
-    displayedData: [],
-    currentPage: 0,
-    pageSize: 50,
+    data: [],
+    currentPage: 1,
+    pageSize: 30,
+    sortable: { 'Knowledge Score': true },
+    sortCol: 'Distance',
+    sortDir: 'asc',
     loading: false,
     hasMore: false,
+    // Functions for sorting each column in the results
+    // see the sortBy function below, and the docs for Array.sort on MDN
+    sorters: {
+      'Distance': function (x, y) {
+        return sortBy(Number(x.dist), Number(y.dist));
+      },
+      'Name': function (x, y) {
+        return sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid);
+      },
+      'Knowledge Score': function (x, y) {
+        return sortBy(Number(x.knowledge_score), Number(y.knowledge_score));
+      },
+      'Source': function (x, y) {
+        return sortBy(x.source, y.source);
+      }
+    },
+    sortByColumn: function (colName) {
+      var alreadySorting = this.sortCol === colName;
+      if (alreadySorting && this.sortDir === 'asc') {
+        this.sortDir = 'desc';
+      } else {
+        this.sortDir = 'asc';
+        this.sortCol = colName;
+      }
+      if (this.sortCol) {
+        var sorter = this.sorters[colName];
+        if (this.sortDir === 'desc') sorter = reverse(sorter);
+        this.data.sort(sorter);
+      }
+      this._render();
+    },
     nextPage: function () {
       if (!this.hasMore) return;
-      var nextPage = this.hiddenData.slice(0, this.pageSize);
-      this.displayedData = this.displayedData.concat(nextPage);
-      this.hiddenData = this.hiddenData.slice(this.pageSize);
-      this.hasMore = this.hiddenData.length > 0;
       this.currentPage += 1;
+      this.hasMore = this.currentPage * this.pageSize < this.data.length;
       this._render();
     },
     fetch: function (upa) {
@@ -60,16 +93,32 @@ function HomologTable() {
       this.loading = true;
       fetchHomologs(this.upa).then(function (resp) {
         _this.loading = false;
-        _this.currentPage = 0;
+        _this.currentPage = 1;
         if (resp && resp.length) {
-          _this.displayedData = resp.slice(0, _this.pageSize);
-          _this.hiddenData = resp.slice(_this.pageSize);
-          _this.hasMore = _this.hiddenData.length > 0;
+          _this.data = resp;
+          _this.hasMore = _this.data.length > _this.pageSize;
         } else {
-          _this.homologs = null;
+          _this.data = [];
           _this.hasMore = false;
         }
         _this._render();
+        return _this.data;
+      }).then(function (data) {
+        if (data && data.length) {
+          var ids = data.map(function (d) {
+            return d.kbase_id;
+          }).filter(Boolean).map(toObjKey).map(function (key) {
+            return 'wsprov_object/' + key;
+          });
+          return fetchKnowledgeScores(ids);
+        }
+      }).then(function (resp) {
+        if (resp && resp.results && resp.results.length) {
+          resp.results.forEach(function (score, idx) {
+            _this.data[idx].knowledge_score = score;
+          });
+          _this._render();
+        }
       }).catch(function (err) {
         console.error(err);
         _this.loading = false;
@@ -84,32 +133,66 @@ function HomologTable() {
 function view() {
   var _this2 = this;
 
-  if (this.loading) {
+  var table = this;
+  if (table.loading) {
     return h('p.muted', 'Loading homologs...');
   }
-  if (!this.displayedData || !this.displayedData.length) {
+  if (!table.data || !table.data.length) {
     return h('div', '');
   }
-  return h('div', {
-    class: { faded: this.loading }
-  }, [h('h2.mt3', 'Similar Genomes'), h('table.table-lined', [h('thead', [h('tr', [h('th', 'Distance'), h('th', 'Name'), h('th', 'Source')])]), h('tbody', this.displayedData.map(function (hom) {
-    var kbaseid = hom.kbase_id,
-        dist = hom.dist,
-        namespaceid = hom.namespaceid,
-        sciname = hom.sciname,
-        sourceid = hom.sourceid;
-
-    var href = window._env.kbaseRoot + '/#dataview/' + kbaseid;
-    return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href, target: '_blank' } }, sciname || sourceid)]), h('td', [namespaceid.replace(/_/g, ' ')])]);
-  }))]), showIf(!this.hasMore, function () {
+  var displayedCount = table.currentPage * table.pageSize;
+  console.log('count', displayedCount);
+  var tableRows = [];
+  for (var i = 0; i < displayedCount && i < table.data.length; ++i) {
+    tableRows.push(resultRow(table, table.data[i]));
+  }
+  return h('div', [h('h2.mt3', 'Similar Genomes'), h('table.table-lined', [h('thead', [h('tr', [th(table, 'Distance'), th(table, 'Name'), th(table, 'Knowledge Score'), th(table, 'Source')])]), h('tbody', tableRows)]), showIf(!table.hasMore, function () {
     return h('p.muted', 'No more results.');
-  }), showIf(this.hasMore, function () {
+  }), showIf(table.hasMore, function () {
+    var remaining = table.data.length - _this2.currentPage * _this2.pageSize;
     return h('div', [h('button.btn.mt2', { on: { click: function () {
-          return _this2.nextPage();
-        } } }, ['Load more ']), h('span.muted.inline-block.ml1', [_this2.hiddenData.length, ' left'])]);
+          return table.nextPage();
+        } } }, ['Load more ']), h('span.muted.inline-block.ml1', [remaining, ' left'])]);
   })]);
 }
-},{"../utils/apiClients":19,"../utils/showIf":23,"./Component.js":1,"snabbdom/h":7}],3:[function(require,module,exports){
+
+function resultRow(table, result) {
+  var kbaseid = result.kbase_id,
+      dist = result.dist,
+      namespaceid = result.namespaceid,
+      sciname = result.sciname,
+      sourceid = result.sourceid;
+
+  var href = window._env.kbaseRoot + '/#dataview/' + kbaseid;
+  return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href, target: '_blank' } }, sciname || sourceid)]), h('td', [isNaN(result.knowledge_score) ? '...' : result.knowledge_score]), h('td', [namespaceid.replace(/_/g, ' ')])]);
+}
+
+function th(table, txt) {
+  var isSorting = table.sortCol === txt;
+  return h('th.sortable', {
+    class: { sorting: isSorting },
+    on: {
+      click: function () {
+        table.sortByColumn(txt);
+      }
+    }
+  }, [h('span', [txt]), showIf(isSorting, function () {
+    return h('span.arrow.inline-block.ml1', {
+      class: {
+        'arrow-down': table.sortDir === 'asc',
+        'arrow-up': table.sortDir === 'desc'
+      }
+    });
+  })]);
+}
+
+function reverse(fn) {
+  return function (x, y) {
+    var result = fn(x, y);
+    return -result;
+  };
+}
+},{"../utils/apiClients":19,"../utils/showIf":23,"../utils/sortBy":24,"../utils/toObjKey":25,"./Component.js":1,"snabbdom/h":7}],3:[function(require,module,exports){
 var Component = require('./Component.js');
 var h = require('snabbdom/h').default;
 
@@ -144,8 +227,8 @@ function LinkedDataTable(objKey, type, count) {
         _this.loading = false;
         _this.data = null;
         _this.hasMore = false;
-        if (resp.results) {
-          _this.data = resp.results;
+        if (resp.results && resp.results.length) {
+          _this.data = resp.results[0];
           if (_this.data.length < _this.totalCount) {
             _this.hasMore = true;
           }
@@ -211,11 +294,13 @@ function view() {
 
   var _loop = function (i) {
     var _data$i = _this3.data[i],
-        typePath = _data$i.type_path,
+        path = _data$i.path,
         vertex = _data$i.vertex,
         expanded = _data$i.expanded;
 
-    var formattedPath = typePath.map(typeName);
+    var formattedPath = path.vertices.map(function (v) {
+      return typeName(v.ws_type);
+    });
     formattedPath[0] += ' (this)';
     formattedPath = formattedPath.join(' 🡒 ');
     var dataRow = h('tr.expandable', {
@@ -278,7 +363,7 @@ function view() {
     return h('p.muted', 'No more results');
   })]);
 }
-},{"../utils/apiClients":19,"../utils/formatDate":20,"../utils/objHrefs":22,"../utils/showIf":23,"../utils/typeName":26,"./Component.js":1,"snabbdom/h":7}],4:[function(require,module,exports){
+},{"../utils/apiClients":19,"../utils/formatDate":20,"../utils/objHrefs":22,"../utils/showIf":23,"../utils/typeName":27,"./Component.js":1,"snabbdom/h":7}],4:[function(require,module,exports){
 var serialize = require('form-serialize');
 var h = require('snabbdom/h').default;
 var Component = require('./Component');
@@ -354,6 +439,7 @@ var _require = require('./utils/apiClients'),
 
 var toObjKey = require('./utils/toObjKey');
 var typeName = require('./utils/typeName');
+var sortBy = require('./utils/sortBy');
 
 // components
 var Component = require('./components/Component');
@@ -382,15 +468,15 @@ function Page() {
       var key = toObjKey(upa);
       this.homologTable.fetch(upa);
       fetchTypeCounts(key, null).then(function (resp) {
-        console.log('resp', resp);
         if (resp.results && resp.results.length) {
-          _this.typeCounts = resp.results
+          _this.typeCounts = mergeTypeCounts(resp.results[0].inb || {}, resp.results[0].out || {});
+          _this.typeCounts = _this.typeCounts
           // Initialize a LinkedDataTable for each type result
           // Set other defaults
           .map(function (entry) {
-            entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.type_count);
-            entry.typeName = typeName(entry.type);
+            entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.count);
             entry.typeVersion = entry.type.match(/(\d+\.\d+)$/)[0];
+            entry.typeName = typeName(entry.type);
             return entry;
           });
         } else {
@@ -426,23 +512,20 @@ function view() {
     // We are still awaiting any post message for initial parameters..
     return div([page.upaForm.view(), h('p.muted', 'Waiting for input...')]);
   }
-  return div([page.upaForm.view(), showIf(page.loading, function () {
-    return h('p.muted.bold', 'Loading...');
-  }), showIf(page.error, function () {
+  return div([page.upaForm.view(), showIf(page.error, function () {
     return h('p.error', page.error);
-  }), h('div', { class: { faded: page.loading } }, [typeHeaders(page), page.homologTable.view()])]);
+  }), h('div', [typeHeaders(page), page.homologTable.view()])]);
 }
 
 function typeHeaders(page) {
+  if (page.loading) {
+    return h('p.muted', 'Searching for linked data...');
+  }
   if (!page.typeCounts || !page.typeCounts.length) {
-    if (page.loading) {
-      return h('p.muted', 'Searching for linked data...');
-    } else {
-      return h('p.muted', 'No linked data results.');
-    }
+    return h('p.muted', 'No linked data results.');
   }
   return h('div', [h('h2.mt0', 'Linked Data'), h('div', page.typeCounts.map(function (entry) {
-    var count = entry.type_count,
+    var count = entry.count,
         expanded = entry.expanded;
 
     var iconColor = icons.colors[entry.typeName];
@@ -518,6 +601,26 @@ function receiveMessage(ev) {
   window._messageHandlers[data.method](data.params);
 }
 
+function mergeTypeCounts(inb, out) {
+  // Convert inbound and outbound counts into a single merged object of simple type names
+  var all = inb.concat(out).map(function (t) {
+    return { type: t.type, count: t.type_count };
+  });
+  var allObj = {};
+  all.forEach(function (t) {
+    allObj[t.type] = allObj[t.type] || 0;
+    allObj[t.type] += t.count;
+  });
+  // Convert back to an array, sorted by type name
+  var sorted = [];
+  for (var name in allObj) {
+    sorted.push({ type: name, count: allObj[name] });
+  }
+  return sorted.sort(function (x, y) {
+    return sortBy(x.type, y.type);
+  });
+}
+
 // Handle post message methods
 window._messageHandlers = {
   setConfig: function (_ref) {
@@ -531,7 +634,7 @@ window._messageHandlers = {
 
   // -- Render the page component
 };document.body.appendChild(document._page._render().elm);
-},{"./components/Component":1,"./components/HomologTable":2,"./components/LinkedDataTable":3,"./components/UpaForm":4,"./utils/apiClients":19,"./utils/icons":21,"./utils/showIf":23,"./utils/toObjKey":24,"./utils/typeName":26,"snabbdom/h":7}],6:[function(require,module,exports){
+},{"./components/Component":1,"./components/HomologTable":2,"./components/LinkedDataTable":3,"./components/UpaForm":4,"./utils/apiClients":19,"./utils/icons":21,"./utils/showIf":23,"./utils/sortBy":24,"./utils/toObjKey":25,"./utils/typeName":27,"snabbdom/h":7}],6:[function(require,module,exports){
 // get successful control from form and assemble into object
 // http://www.w3.org/TR/html401/interact/forms.html#h-17.13.2
 
@@ -1643,13 +1746,12 @@ exports.vnode = vnode;
 exports.default = vnode;
 
 },{}],19:[function(require,module,exports){
-module.exports = { fetchLinkedObjs: fetchLinkedObjs, fetchHomologs: fetchHomologs, fetchTypeCounts: fetchTypeCounts
+module.exports = { fetchLinkedObjs: fetchLinkedObjs, fetchHomologs: fetchHomologs, fetchTypeCounts: fetchTypeCounts, fetchKnowledgeScores: fetchKnowledgeScores
 
   // Outbound linked data are objects that our current object has led to the creation of
   // Inbound linked data are objects that our current object is created from
 
 };function fetchLinkedObjs(key, options) {
-  console.log('options', options);
   var payload = {
     obj_key: key,
     owners: false,
@@ -1659,18 +1761,26 @@ module.exports = { fetchLinkedObjs: fetchLinkedObjs, fetchHomologs: fetchHomolog
     offset: options.offset,
     results_limit: options.limit
   };
-  var token = window._env.authToken;
-  return aqlQuery(payload, token, { view: 'wsprov_fetch_linked_objects' });
+  return aqlQuery(payload, { view: 'wsprov_fetch_linked_objects' });
+}
+
+function fetchKnowledgeScores(ids) {
+  var payload = {
+    obj_ids: ids,
+    prop: 'knowledge_score'
+  };
+  return aqlQuery(payload, { view: 'wsprov_fetch_obj_field' });
 }
 
 function fetchTypeCounts(key) {
   var payload = {
     obj_key: key,
-    show_public: true,
-    show_private: true
+    owners: false,
+    type: false,
+    show_private: true,
+    show_public: true
   };
-  var token = window._env.authToken;
-  return aqlQuery(payload, token, { view: 'wsprov_count_linked_object_types' });
+  return aqlQuery(payload, { view: 'wsprov_count_linked_object_types' });
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
@@ -1700,10 +1810,10 @@ function fetchHomologs(upa, token) {
 }
 
 // Make a request to the relation engine api to do an ad-hoc admin query for prototyping
-function aqlQuery(payload, token, params) {
+function aqlQuery(payload, params) {
+  var token = window._env.authToken;
   var apiUrl = window._env.relEngURL.replace(/\/$/, ''); // remove trailing slash
   var url = apiUrl + '/api/query_results/' + queryify(params);
-  console.log({ url: url });
   var headers = {};
   if (token) headers.Authorization = token;
   return window.fetch(url, {
@@ -1817,7 +1927,7 @@ function objHrefs(obj) {
   }
   return hrefs;
 }
-},{"./toUpa":25}],23:[function(require,module,exports){
+},{"./toUpa":26}],23:[function(require,module,exports){
 module.exports = showIf;
 
 // A bit more readable ternary conditional for use in views
@@ -1830,18 +1940,26 @@ function showIf(bool, vnode) {
   return '';
 }
 },{}],24:[function(require,module,exports){
+module.exports = sortBy;
+
+function sortBy(x, y) {
+  if (x > y) return 1;
+  if (x < y) return -1;
+  return 0;
+}
+},{}],25:[function(require,module,exports){
 // Convert an upa to an arango object key
 // '1/2/3' -> '1:2:3'
 module.exports = function (upa) {
   return upa.replace(/\//g, ':');
 };
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 // Convert an arango object key to an upa
 // '1:2:3' -> '1/2/3'
 module.exports = function (key) {
   return key.replace(/:/g, '/');
 };
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 
 module.exports = typeName;
 
