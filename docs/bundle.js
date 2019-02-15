@@ -59,7 +59,9 @@ function HomologTable() {
         return sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid);
       },
       'Knowledge Score': function (x, y) {
-        return sortBy(Number(x.knowledge_score), Number(y.knowledge_score));
+        var scorex = isNaN(x.knowledge_score) ? 0 : Number(x.knowledge_score);
+        var scorey = isNaN(y.knowledge_score) ? 0 : Number(y.knowledge_score);
+        return sortBy(scorex, scorey);
       },
       'Source': function (x, y) {
         return sortBy(x.source, y.source);
@@ -114,8 +116,14 @@ function HomologTable() {
         }
       }).then(function (resp) {
         if (resp && resp.results && resp.results.length) {
-          resp.results.forEach(function (score, idx) {
-            _this.data[idx].knowledge_score = score;
+          resp.results.forEach(function (result, idx) {
+            var score = Number(result.knowledge_score);
+            var resultKey = result.key;
+            _this.data.filter(function (d) {
+              return toObjKey(d.kbase_id) === resultKey;
+            }).forEach(function (d) {
+              d.knowledge_score = score;
+            });
           });
           _this._render();
         }
@@ -141,12 +149,11 @@ function view() {
     return h('div', '');
   }
   var displayedCount = table.currentPage * table.pageSize;
-  console.log('count', displayedCount);
   var tableRows = [];
   for (var i = 0; i < displayedCount && i < table.data.length; ++i) {
     tableRows.push(resultRow(table, table.data[i]));
   }
-  return h('div', [h('h2.mt3', 'Similar Genomes'), h('table.table-lined', [h('thead', [h('tr', [th(table, 'Distance'), th(table, 'Name'), th(table, 'Knowledge Score'), th(table, 'Source')])]), h('tbody', tableRows)]), showIf(!table.hasMore, function () {
+  return h('div', [h('h2.mt3', 'Similar Assemblies'), h('table.table-lined', [h('thead', [h('tr', [th(table, 'Distance'), th(table, 'Name'), th(table, 'Knowledge Score'), th(table, 'Source')])]), h('tbody', tableRows)]), showIf(!table.hasMore, function () {
     return h('p.muted', 'No more results.');
   }), showIf(table.hasMore, function () {
     var remaining = table.data.length - _this2.currentPage * _this2.pageSize;
@@ -164,7 +171,7 @@ function resultRow(table, result) {
       sourceid = result.sourceid;
 
   var href = window._env.kbaseRoot + '/#dataview/' + kbaseid;
-  return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href, target: '_blank' } }, sciname || sourceid)]), h('td', [isNaN(result.knowledge_score) ? '...' : result.knowledge_score]), h('td', [namespaceid.replace(/_/g, ' ')])]);
+  return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href, target: '_blank' } }, sciname || sourceid)]), h('td', [isNaN(result.knowledge_score) ? '' : result.knowledge_score]), h('td', [namespaceid.replace(/_/g, ' ')])]);
 }
 
 function th(table, txt) {
