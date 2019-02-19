@@ -1,4 +1,4 @@
-module.exports = { fetchLinkedObjs, fetchHomologs, fetchTypeCounts, fetchKnowledgeScores }
+module.exports = { fetchLinkedObjs, fetchHomologs, fetchTypeCounts, fetchKnowledgeScores, fetchReferences }
 
 // Outbound linked data are objects that our current object has led to the creation of
 // Inbound linked data are objects that our current object is created from
@@ -33,6 +33,15 @@ function fetchTypeCounts (key) {
     show_public: true
   }
   return aqlQuery(payload, { view: 'wsprov_count_linked_object_types' })
+}
+
+function fetchReferences (key) {
+  const payload = {
+    obj_key: key,
+    result_limit: 10,
+    offset: 0
+  }
+  return aqlQuery(payload, { view: 'wsprov_fetch_references' })
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)

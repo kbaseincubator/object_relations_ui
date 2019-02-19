@@ -1,5 +1,10 @@
 const Component = require('./Component.js')
 const h = require('snabbdom/h').default
+
+// components
+const { HomologDetails } = require('./HomologDetails')
+
+// utils
 const { fetchHomologs, fetchKnowledgeScores } = require('../utils/apiClients')
 const showIf = require('../utils/showIf')
 const toObjKey = require('../utils/toObjKey')
@@ -30,6 +35,7 @@ function HomologTable () {
       },
       'Source': (x, y) => sortBy(x.source, y.source)
     },
+    // Sort the results by a column
     sortByColumn (colName) {
       const alreadySorting = this.sortCol === colName
       if (alreadySorting && this.sortDir === 'asc') {
@@ -45,12 +51,14 @@ function HomologTable () {
       }
       this._render()
     },
+    // Advance the page (simply show more data in the dom, no ajax)
     nextPage () {
       if (!this.hasMore) return
       this.currentPage += 1
       this.hasMore = (this.currentPage * this.pageSize) < this.data.length
       this._render()
     },
+    // Fetch assembly homology results for a given reads, assembly, or genome object
     fetch (upa) {
       this.upa = upa.replace(/:/g, '/')
       this.loading = true
@@ -65,17 +73,26 @@ function HomologTable () {
             this.data = []
             this.hasMore = false
           }
-          this._render()
           return this.data
         })
         .then(data => {
           if (data && data.length) {
+            // Initialize and assign a HomologDetails component for each result
+            data = data.map(d => {
+              d.details = HomologDetails(d)
+              return d
+            })
+            // Get an array of all the KBase workspace IDs for each result
             const ids = data.map(d => d.kbase_id).filter(Boolean)
               .map(toObjKey)
               .map(key => 'wsprov_object/' + key)
             return fetchKnowledgeScores(ids)
+          } else {
+            return []
           }
         })
+        // Fetch knowledge scores from arango for each result
+        // Assign the scores into each result object
         .then(resp => {
           if (resp && resp.results && resp.results.length) {
             resp.results.forEach((result, idx) => {
@@ -84,11 +101,10 @@ function HomologTable () {
               this.data.filter(d => toObjKey(d.kbase_id) === resultKey)
                 .forEach(d => { d.knowledge_score = score })
             })
-            this._render()
           }
         })
-        .catch(err => {
-          console.error(err)
+        .catch(err => { console.error(err) })
+        .finally(() => {
           this.loading = false
           this._render()
         })
@@ -106,15 +122,18 @@ function view () {
     return h('div', '')
   }
   const displayedCount = table.currentPage * table.pageSize
+  const nCols = 5 // number of columns in the table
   const tableRows = []
   for (let i = 0; i < displayedCount && i < table.data.length; ++i) {
     tableRows.push(resultRow(table, table.data[i]))
+    tableRows.push(resultRowDetails(table, table.data[i], nCols))
   }
   return h('div', [
     h('h2.mt3', 'Similar Assemblies'),
     h('table.table-lined', [
       h('thead', [
         h('tr', [
+          h('th', ''), // empty table header for plus/minus expand icon
           th(table, 'Distance'),
           th(table, 'Name'),
           th(table, 'Knowledge Score'),
@@ -135,20 +154,35 @@ function view () {
 }
 
 function resultRow (table, result) {
-  const { kbase_id: kbaseid, dist, namespaceid, sciname, sourceid } = result
-  const href = window._env.kbaseRoot + '/#dataview/' + kbaseid
-  return h('tr', [
-    h('td.bold', [
-      dist
-    ]),
-    h('td', [
-      h('a', { props: { href, target: '_blank' } }, sciname || sourceid)
-    ]),
+  const { dist, namespaceid, sciname, sourceid } = result
+  return h('tr.expandable', {
+    class: { expanded: result.expanded },
+    on: {
+      click: () => {
+        result.expanded = !result.expanded
+        result.details.fetchReferences()
+        table._render()
+      }
+    }
+  }, [
+    h('td', [ h('span.expand-icon', result.expanded ? '−' : '+') ]),
+    h('td.bold', [ dist ]),
+    h('td', [ sciname || sourceid ]),
     h('td', [
       isNaN(result.knowledge_score) ? '' : result.knowledge_score
     ]),
     h('td', [
       namespaceid.replace(/_/g, ' ')
+    ])
+  ])
+}
+
+function resultRowDetails (table, result, nCols) {
+  return h('tr.expandable-sibling', {
+    class: { 'expanded-sibling': result.expanded }
+  }, [
+    h('td', { props: { colSpan: nCols } }, [
+      result.details.view()
     ])
   ])
 }

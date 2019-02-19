@@ -1,5 +1,10 @@
 const Component = require('./Component.js')
 const h = require('snabbdom/h').default
+
+// views
+const definition = require('./views/definition')
+
+// utils
 const { fetchLinkedObjs } = require('../utils/apiClients')
 const objHrefs = require('../utils/objHrefs')
 const formatDate = require('../utils/formatDate')
@@ -121,9 +126,7 @@ function view () {
     ])
     const hrefs = objHrefs(vertex)
     const detailsRow = h('tr.expandable-sibling', {
-      class: {
-        'expanded-sibling': expanded
-      }
+      class: { 'expanded-sibling': expanded }
     }, [
       h('td', { props: { colSpan: nCols } }, [
         h('div.p1', {
@@ -132,41 +135,11 @@ function view () {
             whiteSpace: 'normal'
           }
         }, [
-          h('p.m0.py1.border-bottom.light-border', [
-            h('span.bold.color-devil', 'Object'),
-            h('a.inline-block.right.text-ellipsis.mw-36rem', {
-              props: {
-                href: hrefs.obj,
-                target: '_blank'
-              }
-            }, vertex.obj_name)
-          ]),
-          h('p.m0.py1.border-bottom.light-border', [
-            h('span.bold.color-devil', 'Save date'),
-            h('span.inline-block.right.text-ellipsis.mw-36rem', formatDate(vertex.save_date))
-          ]),
-          h('p.m0.py1.border-bottom.light-border', [
-            h('span.bold.color-devil', 'Data Type'),
-            h('a.inline-block.right.text-ellipsis.mw-36rem', {
-              props: {
-                href: hrefs.type,
-                target: '_blank'
-              }
-            }, vertex.ws_type)
-          ]),
-          h('p.m0.py1.border-bottom.light-border', [
-            h('span.bold.color-devil', 'Narrative'),
-            h('a.inline-block.right.text-ellipsis.mw-36rem', {
-              props: {
-                href: hrefs.narrative,
-                target: '_blank'
-              }
-            }, vertex.narr_name)
-          ]),
-          h('p.m0.py1', [
-            h('span.bold.color-devil', 'Path to object'),
-            h('span.inline-block.right.text-ellipsis.mw-36rem', formattedPath)
-          ])
+          definition('Object', vertex.obj_name, hrefs.obj),
+          definition('Save date', formatDate(vertex.save_date)),
+          definition('Data type', vertex.ws_type, hrefs.type),
+          definition('Narrative', vertex.narr_name, hrefs.narrative),
+          definition('Path to object', formattedPath)
         ])
       ])
     ])

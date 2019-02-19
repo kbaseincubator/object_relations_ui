@@ -221,7 +221,9 @@ fieldset {
   position: sticky;
   top: 0px;
   background: white;
-  position: relative;
+}
+.table-lined.table-lined-gray th {
+  background: #eee;
 }
 .table-lined th,
 .table-lined th * {
