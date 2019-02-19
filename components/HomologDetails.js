@@ -32,7 +32,6 @@ function HomologDetails (data) {
       fetchReferences(key)
         .then(resp => {
           if (resp && resp.results && resp.results.length) {
-            console.log('fetch refs resp', resp)
             this.references.data = resp.results
           } else {
             throw new Error(resp)
@@ -70,7 +69,7 @@ function refTable (details) {
     return h('p.p1.muted', 'No further references found for this result.')
   }
   return h('div.p1', [
-    h('h4.my1', 'Referencing Objects'),
+    h('h3.h3-5.my1', 'Referencing Objects'),
     h('table.table-lined.table-lined-gray', [
       h('thead', [
         h('tr', [
@@ -87,8 +86,10 @@ function refTable (details) {
 
 function refRow (details, ref) {
   const hrefs = objHrefs(ref)
-  return h('tr', [
-    h('td', typeName(ref.ws_type)),
+  return h('tr', {
+    key: ref._key
+  }, [
+    h('td', h('span.bold', typeName(ref.ws_type))),
     h('td', [
       h('a', {
         props: {

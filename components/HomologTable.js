@@ -156,6 +156,7 @@ function view () {
 function resultRow (table, result) {
   const { dist, namespaceid, sciname, sourceid } = result
   return h('tr.expandable', {
+    key: sourceid,
     class: { expanded: result.expanded },
     on: {
       click: () => {
@@ -179,6 +180,7 @@ function resultRow (table, result) {
 
 function resultRowDetails (table, result, nCols) {
   return h('tr.expandable-sibling', {
+    key: result.sourceid + '-details',
     class: { 'expanded-sibling': result.expanded }
   }, [
     h('td', { props: { colSpan: nCols } }, [

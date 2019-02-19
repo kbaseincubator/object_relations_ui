@@ -62,15 +62,16 @@ function LinkedDataTable (objKey, type, count) {
       })
         .then(resp => {
           if (resp.results) {
-            if (resp.results.length === 0) {
-              this.hasMore = false
+            if (resp.results.length && resp.results[0].length) {
+              this.data = this.data.concat(resp.results[0])
             } else {
-              this.data = this.data.concat(resp.results)
+              this.hasMore = false
             }
             if (this.data.length >= this.totalCount) {
               this.hasMore = false
             }
-          } else if (resp.error) {
+          }
+          if (resp.error) {
             console.error(resp.error)
           }
           this.loadingMore = false
@@ -102,6 +103,7 @@ function view () {
     formattedPath = formattedPath.join(' 🡒 ')
     const dataRow = h('tr.expandable', {
       class: { expanded },
+      key: vertex._key,
       on: {
         click: () => {
           this.data[i].expanded = !this.data[i].expanded
@@ -126,6 +128,7 @@ function view () {
     ])
     const hrefs = objHrefs(vertex)
     const detailsRow = h('tr.expandable-sibling', {
+      key: vertex._key + '-details',
       class: { 'expanded-sibling': expanded }
     }, [
       h('td', { props: { colSpan: nCols } }, [
