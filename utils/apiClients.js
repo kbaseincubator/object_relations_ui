@@ -21,7 +21,7 @@ function fetchKnowledgeScores (ids) {
     obj_ids: ids,
     prop: 'knowledge_score'
   }
-  return aqlQuery(payload, { view: 'wsprov_fetch_obj_field' })
+  return aqlQuery(payload, { view: 'wsprov_fetch_obj_field', batch_size: 500 })
 }
 
 function fetchTypeCounts (key) {
