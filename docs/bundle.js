@@ -24,13 +24,107 @@ function Component(obj) {
   };
   return obj;
 }
-},{"snabbdom":16,"snabbdom/h":7,"snabbdom/modules/attributes":10,"snabbdom/modules/class":11,"snabbdom/modules/dataset":12,"snabbdom/modules/eventlisteners":13,"snabbdom/modules/props":14,"snabbdom/modules/style":15}],2:[function(require,module,exports){
+},{"snabbdom":18,"snabbdom/h":9,"snabbdom/modules/attributes":12,"snabbdom/modules/class":13,"snabbdom/modules/dataset":14,"snabbdom/modules/eventlisteners":15,"snabbdom/modules/props":16,"snabbdom/modules/style":17}],2:[function(require,module,exports){
 var Component = require('./Component.js');
 var h = require('snabbdom/h').default;
 
+// utils
+
 var _require = require('../utils/apiClients'),
-    fetchHomologs = _require.fetchHomologs,
-    fetchKnowledgeScores = _require.fetchKnowledgeScores;
+    fetchReferences = _require.fetchReferences;
+
+var toObjKey = require('../utils/toObjKey');
+var typeName = require('../utils/typeName');
+var formatDate = require('../utils/formatDate');
+var objHrefs = require('../utils/objHrefs');
+
+// views
+var definition = require('./views/definition');
+
+module.exports = { HomologDetails: HomologDetails
+
+  // This component appears when a user expands a homolog result to view further details
+  // `data` is one row in the results fetched in HomologTable.data
+};function HomologDetails(data) {
+  return Component({
+    references: {
+      fetched: false,
+      data: [],
+      currentPage: 0,
+      pageSize: 10,
+      loading: false
+    },
+    // Fetch referencing objects
+    fetchReferences: function (result) {
+      var _this = this;
+
+      if (this.references.fetched) return;
+      this.references.loading = true;
+      var key = toObjKey(this.data.kbase_id);
+      fetchReferences(key).then(function (resp) {
+        if (resp && resp.results && resp.results.length) {
+          _this.references.data = resp.results;
+        } else {
+          throw new Error(resp);
+        }
+      }).catch(function (err) {
+        console.error(err);
+      }).finally(function () {
+        _this.references.loading = false;
+        _this.references.fetched = true;
+        _this._render();
+      });
+    },
+
+    data: data,
+    view: view
+  });
+}
+
+function view() {
+  var details = this;
+  var href = window._env.kbaseRoot + '/#dataview/' + details.data.kbase_id;
+  return h('div.p1', [definition('Assembly', details.data.sciname || details.data.sourceid, href), definition('Mash distance', details.data.dist), refTable(details)]);
+}
+
+function refTable(details) {
+  if (details.references.loading) {
+    return h('p.p1.muted', 'Loading references...');
+  }
+  if (!details.references.data || !details.references.data.length) {
+    return h('p.p1.muted', 'No further references found for this result.');
+  }
+  return h('div.p1', [h('h3.h3-5.my1', 'Referencing Objects'), h('table.table-lined.table-lined-gray', [h('thead', [h('tr', [h('th', 'Type'), h('th', 'Name'), h('th', 'Creator'), h('th', 'Date')])]), h('tbody', details.references.data.map(function (r) {
+    return refRow(details, r);
+  }))])]);
+}
+
+function refRow(details, ref) {
+  var hrefs = objHrefs(ref);
+  return h('tr', {
+    key: ref._key
+  }, [h('td', h('span.bold', typeName(ref.ws_type))), h('td', [h('a', {
+    props: {
+      href: hrefs.obj,
+      target: '_blank'
+    }
+  }, [ref.obj_name])]), h('td', ref.owner), h('td', formatDate(ref.save_date))]);
+}
+},{"../utils/apiClients":21,"../utils/formatDate":22,"../utils/objHrefs":24,"../utils/toObjKey":27,"../utils/typeName":29,"./Component.js":1,"./views/definition":6,"snabbdom/h":9}],3:[function(require,module,exports){
+var Component = require('./Component.js');
+var h = require('snabbdom/h').default;
+
+// components
+
+var _require = require('./HomologDetails'),
+    HomologDetails = _require.HomologDetails;
+
+// utils
+
+
+var _require2 = require('../utils/apiClients'),
+    fetchHomologs = _require2.fetchHomologs,
+    fetchKnowledgeScores = _require2.fetchKnowledgeScores;
 
 var showIf = require('../utils/showIf');
 var toObjKey = require('../utils/toObjKey');
@@ -67,6 +161,7 @@ function HomologTable() {
         return sortBy(x.source, y.source);
       }
     },
+    // Sort the results by a column
     sortByColumn: function (colName) {
       var alreadySorting = this.sortCol === colName;
       if (alreadySorting && this.sortDir === 'asc') {
@@ -82,12 +177,16 @@ function HomologTable() {
       }
       this._render();
     },
+
+    // Advance the page (simply show more data in the dom, no ajax)
     nextPage: function () {
       if (!this.hasMore) return;
       this.currentPage += 1;
       this.hasMore = this.currentPage * this.pageSize < this.data.length;
       this._render();
     },
+
+    // Fetch assembly homology results for a given reads, assembly, or genome object
     fetch: function (upa) {
       var _this = this;
 
@@ -103,18 +202,28 @@ function HomologTable() {
           _this.data = [];
           _this.hasMore = false;
         }
-        _this._render();
         return _this.data;
       }).then(function (data) {
         if (data && data.length) {
+          // Initialize and assign a HomologDetails component for each result
+          data = data.map(function (d) {
+            d.details = HomologDetails(d);
+            return d;
+          });
+          // Get an array of all the KBase workspace IDs for each result
           var ids = data.map(function (d) {
             return d.kbase_id;
           }).filter(Boolean).map(toObjKey).map(function (key) {
             return 'wsprov_object/' + key;
           });
           return fetchKnowledgeScores(ids);
+        } else {
+          return [];
         }
-      }).then(function (resp) {
+      })
+      // Fetch knowledge scores from arango for each result
+      // Assign the scores into each result object
+      .then(function (resp) {
         if (resp && resp.results && resp.results.length) {
           resp.results.forEach(function (result, idx) {
             var score = Number(result.knowledge_score);
@@ -125,10 +234,10 @@ function HomologTable() {
               d.knowledge_score = score;
             });
           });
-          _this._render();
         }
       }).catch(function (err) {
         console.error(err);
+      }).finally(function () {
         _this.loading = false;
         _this._render();
       });
@@ -149,11 +258,14 @@ function view() {
     return h('div', '');
   }
   var displayedCount = table.currentPage * table.pageSize;
+  var nCols = 5; // number of columns in the table
   var tableRows = [];
   for (var i = 0; i < displayedCount && i < table.data.length; ++i) {
     tableRows.push(resultRow(table, table.data[i]));
+    tableRows.push(resultRowDetails(table, table.data[i], nCols));
   }
-  return h('div', [h('h2.mt3', 'Similar Assemblies'), h('table.table-lined', [h('thead', [h('tr', [th(table, 'Distance'), th(table, 'Name'), th(table, 'Knowledge Score'), th(table, 'Source')])]), h('tbody', tableRows)]), showIf(!table.hasMore, function () {
+  return h('div', [h('h2.mt3', 'Similar Assemblies'), h('table.table-lined', [h('thead', [h('tr', [h('th', ''), // empty table header for plus/minus expand icon
+  th(table, 'Distance'), th(table, 'Name'), th(table, 'Knowledge Score'), th(table, 'Source')])]), h('tbody', tableRows)]), showIf(!table.hasMore, function () {
     return h('p.muted', 'No more results.');
   }), showIf(table.hasMore, function () {
     var remaining = table.data.length - _this2.currentPage * _this2.pageSize;
@@ -164,14 +276,29 @@ function view() {
 }
 
 function resultRow(table, result) {
-  var kbaseid = result.kbase_id,
-      dist = result.dist,
+  var dist = result.dist,
       namespaceid = result.namespaceid,
       sciname = result.sciname,
       sourceid = result.sourceid;
 
-  var href = window._env.kbaseRoot + '/#dataview/' + kbaseid;
-  return h('tr', [h('td.bold', [dist]), h('td', [h('a', { props: { href: href, target: '_blank' } }, sciname || sourceid)]), h('td', [isNaN(result.knowledge_score) ? '' : result.knowledge_score]), h('td', [namespaceid.replace(/_/g, ' ')])]);
+  return h('tr.expandable', {
+    key: sourceid,
+    class: { expanded: result.expanded },
+    on: {
+      click: function () {
+        result.expanded = !result.expanded;
+        result.details.fetchReferences();
+        table._render();
+      }
+    }
+  }, [h('td', [h('span.expand-icon', result.expanded ? '−' : '+')]), h('td.bold', [dist]), h('td', [sciname || sourceid]), h('td', [isNaN(result.knowledge_score) ? '' : result.knowledge_score]), h('td', [namespaceid.replace(/_/g, ' ')])]);
+}
+
+function resultRowDetails(table, result, nCols) {
+  return h('tr.expandable-sibling', {
+    key: result.sourceid + '-details',
+    class: { 'expanded-sibling': result.expanded }
+  }, [h('td', { props: { colSpan: nCols } }, [result.details.view()])]);
 }
 
 function th(table, txt) {
@@ -199,9 +326,14 @@ function reverse(fn) {
     return -result;
   };
 }
-},{"../utils/apiClients":19,"../utils/showIf":23,"../utils/sortBy":24,"../utils/toObjKey":25,"./Component.js":1,"snabbdom/h":7}],3:[function(require,module,exports){
+},{"../utils/apiClients":21,"../utils/showIf":25,"../utils/sortBy":26,"../utils/toObjKey":27,"./Component.js":1,"./HomologDetails":2,"snabbdom/h":9}],4:[function(require,module,exports){
 var Component = require('./Component.js');
 var h = require('snabbdom/h').default;
+
+// views
+var definition = require('./views/definition');
+
+// utils
 
 var _require = require('../utils/apiClients'),
     fetchLinkedObjs = _require.fetchLinkedObjs;
@@ -263,15 +395,16 @@ function LinkedDataTable(objKey, type, count) {
         limit: this.limit
       }).then(function (resp) {
         if (resp.results) {
-          if (resp.results.length === 0) {
-            _this2.hasMore = false;
+          if (resp.results.length && resp.results[0].length) {
+            _this2.data = _this2.data.concat(resp.results[0]);
           } else {
-            _this2.data = _this2.data.concat(resp.results);
+            _this2.hasMore = false;
           }
           if (_this2.data.length >= _this2.totalCount) {
             _this2.hasMore = false;
           }
-        } else if (resp.error) {
+        }
+        if (resp.error) {
           console.error(resp.error);
         }
         _this2.loadingMore = false;
@@ -312,6 +445,7 @@ function view() {
     formattedPath = formattedPath.join(' 🡒 ');
     var dataRow = h('tr.expandable', {
       class: { expanded: expanded },
+      key: vertex._key,
       on: {
         click: function () {
           _this3.data[i].expanded = !_this3.data[i].expanded;
@@ -327,30 +461,14 @@ function view() {
     ])]);
     var hrefs = objHrefs(vertex);
     var detailsRow = h('tr.expandable-sibling', {
-      class: {
-        'expanded-sibling': expanded
-      }
+      key: vertex._key + '-details',
+      class: { 'expanded-sibling': expanded }
     }, [h('td', { props: { colSpan: nCols } }, [h('div.p1', {
       style: {
         overflow: 'auto',
         whiteSpace: 'normal'
       }
-    }, [h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Object'), h('a.inline-block.right.text-ellipsis.mw-36rem', {
-      props: {
-        href: hrefs.obj,
-        target: '_blank'
-      }
-    }, vertex.obj_name)]), h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Save date'), h('span.inline-block.right.text-ellipsis.mw-36rem', formatDate(vertex.save_date))]), h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Data Type'), h('a.inline-block.right.text-ellipsis.mw-36rem', {
-      props: {
-        href: hrefs.type,
-        target: '_blank'
-      }
-    }, vertex.ws_type)]), h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', 'Narrative'), h('a.inline-block.right.text-ellipsis.mw-36rem', {
-      props: {
-        href: hrefs.narrative,
-        target: '_blank'
-      }
-    }, vertex.narr_name)]), h('p.m0.py1', [h('span.bold.color-devil', 'Path to object'), h('span.inline-block.right.text-ellipsis.mw-36rem', formattedPath)])])])]);
+    }, [definition('Object', vertex.obj_name, hrefs.obj), definition('Save date', formatDate(vertex.save_date)), definition('Data type', vertex.ws_type, hrefs.type), definition('Narrative', vertex.narr_name, hrefs.narrative), definition('Path to object', formattedPath)])])]);
 
     tableRows.push(dataRow);
     tableRows.push(detailsRow);
@@ -370,7 +488,7 @@ function view() {
     return h('p.muted', 'No more results');
   })]);
 }
-},{"../utils/apiClients":19,"../utils/formatDate":20,"../utils/objHrefs":22,"../utils/showIf":23,"../utils/typeName":27,"./Component.js":1,"snabbdom/h":7}],4:[function(require,module,exports){
+},{"../utils/apiClients":21,"../utils/formatDate":22,"../utils/objHrefs":24,"../utils/showIf":25,"../utils/typeName":29,"./Component.js":1,"./views/definition":6,"snabbdom/h":9}],5:[function(require,module,exports){
 var serialize = require('form-serialize');
 var h = require('snabbdom/h').default;
 var Component = require('./Component');
@@ -433,7 +551,20 @@ function view() {
     }
   })]), h('fieldset.clearfix.col-12.pt2', [h('button.btn', { props: { type: 'submit' } }, 'Submit')])]);
 }
-},{"./Component":1,"form-serialize":6,"snabbdom/h":7}],5:[function(require,module,exports){
+},{"./Component":1,"form-serialize":8,"snabbdom/h":9}],6:[function(require,module,exports){
+var h = require('snabbdom/h').default;
+
+// Term/label and definition (such as "Object" and "PF_NaOCL_trimm_paired")
+module.exports = function (term, def, href) {
+  var content = void 0;
+  if (href) {
+    content = h('a.inline-block.right.text-ellipsis.mw-36rem', { props: { href: href, target: '_blank' } }, def);
+  } else {
+    content = h('span.inline-block.right.text-ellipsis.mw-36rem', def);
+  }
+  return h('div.px1', [h('p.m0.py1.border-bottom.light-border', [h('span.bold.color-devil', term), content])]);
+};
+},{"snabbdom/h":9}],7:[function(require,module,exports){
 // npm
 var h = require('snabbdom/h').default;
 
@@ -641,7 +772,7 @@ window._messageHandlers = {
 
   // -- Render the page component
 };document.body.appendChild(document._page._render().elm);
-},{"./components/Component":1,"./components/HomologTable":2,"./components/LinkedDataTable":3,"./components/UpaForm":4,"./utils/apiClients":19,"./utils/icons":21,"./utils/showIf":23,"./utils/sortBy":24,"./utils/toObjKey":25,"./utils/typeName":27,"snabbdom/h":7}],6:[function(require,module,exports){
+},{"./components/Component":1,"./components/HomologTable":3,"./components/LinkedDataTable":4,"./components/UpaForm":5,"./utils/apiClients":21,"./utils/icons":23,"./utils/showIf":25,"./utils/sortBy":26,"./utils/toObjKey":27,"./utils/typeName":29,"snabbdom/h":9}],8:[function(require,module,exports){
 // get successful control from form and assemble into object
 // http://www.w3.org/TR/html401/interact/forms.html#h-17.13.2
 
@@ -903,7 +1034,7 @@ function str_serialize(result, key, value) {
 
 module.exports = serialize;
 
-},{}],7:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var vnode_1 = require("./vnode");
@@ -963,7 +1094,7 @@ exports.h = h;
 ;
 exports.default = h;
 
-},{"./is":9,"./vnode":18}],8:[function(require,module,exports){
+},{"./is":11,"./vnode":20}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function createElement(tagName) {
@@ -1030,7 +1161,7 @@ exports.htmlDomApi = {
 };
 exports.default = exports.htmlDomApi;
 
-},{}],9:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.array = Array.isArray;
@@ -1039,7 +1170,7 @@ function primitive(s) {
 }
 exports.primitive = primitive;
 
-},{}],10:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var xlinkNS = 'http://www.w3.org/1999/xlink';
@@ -1095,7 +1226,7 @@ function updateAttrs(oldVnode, vnode) {
 exports.attributesModule = { create: updateAttrs, update: updateAttrs };
 exports.default = exports.attributesModule;
 
-},{}],11:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function updateClass(oldVnode, vnode) {
@@ -1121,7 +1252,7 @@ function updateClass(oldVnode, vnode) {
 exports.classModule = { create: updateClass, update: updateClass };
 exports.default = exports.classModule;
 
-},{}],12:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var CAPS_REGEX = /[A-Z]/g;
@@ -1160,7 +1291,7 @@ function updateDataset(oldVnode, vnode) {
 exports.datasetModule = { create: updateDataset, update: updateDataset };
 exports.default = exports.datasetModule;
 
-},{}],13:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function invokeHandler(handler, vnode, event) {
@@ -1256,7 +1387,7 @@ exports.eventListenersModule = {
 };
 exports.default = exports.eventListenersModule;
 
-},{}],14:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function updateProps(oldVnode, vnode) {
@@ -1283,7 +1414,7 @@ function updateProps(oldVnode, vnode) {
 exports.propsModule = { create: updateProps, update: updateProps };
 exports.default = exports.propsModule;
 
-},{}],15:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 // Bindig `requestAnimationFrame` like this fixes a bug in IE/Edge. See #360 and #409.
@@ -1380,7 +1511,7 @@ exports.styleModule = {
 };
 exports.default = exports.styleModule;
 
-},{}],16:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var vnode_1 = require("./vnode");
@@ -1693,7 +1824,7 @@ function init(modules, domApi) {
 }
 exports.init = init;
 
-},{"./h":7,"./htmldomapi":8,"./is":9,"./thunk":17,"./vnode":18}],17:[function(require,module,exports){
+},{"./h":9,"./htmldomapi":10,"./is":11,"./thunk":19,"./vnode":20}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var h_1 = require("./h");
@@ -1741,7 +1872,7 @@ exports.thunk = function thunk(sel, key, fn, args) {
 };
 exports.default = exports.thunk;
 
-},{"./h":7}],18:[function(require,module,exports){
+},{"./h":9}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function vnode(sel, data, children, text, elm) {
@@ -1752,8 +1883,8 @@ function vnode(sel, data, children, text, elm) {
 exports.vnode = vnode;
 exports.default = vnode;
 
-},{}],19:[function(require,module,exports){
-module.exports = { fetchLinkedObjs: fetchLinkedObjs, fetchHomologs: fetchHomologs, fetchTypeCounts: fetchTypeCounts, fetchKnowledgeScores: fetchKnowledgeScores
+},{}],21:[function(require,module,exports){
+module.exports = { fetchLinkedObjs: fetchLinkedObjs, fetchHomologs: fetchHomologs, fetchTypeCounts: fetchTypeCounts, fetchKnowledgeScores: fetchKnowledgeScores, fetchReferences: fetchReferences
 
   // Outbound linked data are objects that our current object has led to the creation of
   // Inbound linked data are objects that our current object is created from
@@ -1788,6 +1919,15 @@ function fetchTypeCounts(key) {
     show_public: true
   };
   return aqlQuery(payload, { view: 'wsprov_count_linked_object_types' });
+}
+
+function fetchReferences(key) {
+  var payload = {
+    obj_key: key,
+    result_limit: 10,
+    offset: 0
+  };
+  return aqlQuery(payload, { view: 'wsprov_fetch_references' });
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
@@ -1844,14 +1984,14 @@ function queryify(params) {
   }
   return '?' + items.join('&');
 }
-},{}],20:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = formatDate;
 
 function formatDate(str) {
   var date = new Date(str);
   return date.toLocaleDateString('en-US');
 }
-},{}],21:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 var colorMapping = {
   AssemblyInput: '#F44336',
   Assembly: '#920D58',
@@ -1907,7 +2047,7 @@ var colorMapping = {
 };
 
 module.exports = { colors: colorMapping };
-},{}],22:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 var toUpa = require('./toUpa');
 
 module.exports = objHrefs;
@@ -1934,7 +2074,7 @@ function objHrefs(obj) {
   }
   return hrefs;
 }
-},{"./toUpa":26}],23:[function(require,module,exports){
+},{"./toUpa":28}],25:[function(require,module,exports){
 module.exports = showIf;
 
 // A bit more readable ternary conditional for use in views
@@ -1946,7 +2086,7 @@ function showIf(bool, vnode) {
   }
   return '';
 }
-},{}],24:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = sortBy;
 
 function sortBy(x, y) {
@@ -1954,19 +2094,19 @@ function sortBy(x, y) {
   if (x < y) return -1;
   return 0;
 }
-},{}],25:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 // Convert an upa to an arango object key
 // '1/2/3' -> '1:2:3'
 module.exports = function (upa) {
   return upa.replace(/\//g, ':');
 };
-},{}],26:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 // Convert an arango object key to an upa
 // '1:2:3' -> '1/2/3'
 module.exports = function (key) {
   return key.replace(/:/g, '/');
 };
-},{}],27:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 
 module.exports = typeName;
 
@@ -1977,4 +2117,4 @@ function typeName(typeStr) {
   if (!matches) return typeStr;
   return matches[1];
 }
-},{}]},{},[5]);
+},{}]},{},[7]);
