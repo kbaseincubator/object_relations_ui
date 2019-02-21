@@ -198,15 +198,18 @@ function mergeTypeCounts (inb, out) {
   all.forEach(t => {
     const existing = allObj[t.typeName]
     if (existing) {
-      // Favor the higher-versioned types
-      if (Number(existing.typeVersion) < Number(t.typeVersion)) {
+      const prevVersion = Number(existing.typeVersion)
+      const thisVersion = Number(t.typeVersion)
+      if (prevVersion === thisVersion) {
+        // For multiple type counts of the same version, add them up
+        allObj[t.typeName].count += t.count
+      } else if (Number(existing.typeVersion) < Number(t.typeVersion)) {
+        // Favor and overwritethe higher-versioned types
         allObj[t.typeName] = t
       }
     } else {
       allObj[t.typeName] = t
     }
-    allObj[t.typeName].count = allObj[t.typeName].count || 0
-    allObj[t.typeName].count += t.count
   })
   // Convert back to an array, sorted by type name
   return Object.values(allObj).sort((x, y) => sortBy(x.typeName, y.typeName))
