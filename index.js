@@ -35,11 +35,8 @@ function Page () {
             this.typeCounts = mergeTypeCounts(resp.results[0].inb || {}, resp.results[0].out || {})
             this.typeCounts = this.typeCounts
               // Initialize a LinkedDataTable for each type result
-              // Set other defaults
               .map(entry => {
                 entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.count)
-                entry.typeVersion = entry.type.match(/(\d+\.\d+)$/)[0]
-                entry.typeName = typeName(entry.type)
                 return entry
               })
           } else {
@@ -118,7 +115,7 @@ function typeHeaders (page) {
           h('h4.inline-block.m0', {
             style: { paddingLeft: '38px' }
           }, [
-            entry.typeName, ' ', entry.typeVersion, ' · ', h('span.muted', [ count, ' total' ])
+            entry.typeName, ' · ', h('span.muted', [ count, ' total' ])
           ])
         ]),
         showIf(entry.expanded, () => typeDataSection(page, entry))
@@ -186,18 +183,33 @@ function receiveMessage (ev) {
 function mergeTypeCounts (inb, out) {
   // Convert inbound and outbound counts into a single merged object of simple type names
   const all = inb.concat(out)
-    .map(t => ({ type: t.type, count: t.type_count }))
+    // Set some useful defaults
+    .map(t => {
+      return {
+        type: t.type,
+        count: t.type_count,
+        typeVersion: t.type.match(/(\d+\.\d+)$/)[0],
+        typeName: typeName(t.type)
+      }
+    })
+
+  // Merge all types by type name
   const allObj = {}
   all.forEach(t => {
-    allObj[t.type] = allObj[t.type] || 0
-    allObj[t.type] += t.count
+    const existing = allObj[t.typeName]
+    if (existing) {
+      // Favor the higher-versioned types
+      if (Number(existing.typeVersion) < Number(t.typeVersion)) {
+        allObj[t.typeName] = t
+      }
+    } else {
+      allObj[t.typeName] = t
+    }
+    allObj[t.typeName].count = allObj[t.typeName].count || 0
+    allObj[t.typeName].count += t.count
   })
   // Convert back to an array, sorted by type name
-  const sorted = []
-  for (let name in allObj) {
-    sorted.push({ type: name, count: allObj[name] })
-  }
-  return sorted.sort((x, y) => sortBy(x.type, y.type))
+  return Object.values(allObj).sort((x, y) => sortBy(x.typeName, y.typeName))
 }
 
 // Handle post message methods
