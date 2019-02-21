@@ -610,11 +610,8 @@ function Page() {
           _this.typeCounts = mergeTypeCounts(resp.results[0].inb || {}, resp.results[0].out || {});
           _this.typeCounts = _this.typeCounts
           // Initialize a LinkedDataTable for each type result
-          // Set other defaults
           .map(function (entry) {
             entry.linkedDataTable = LinkedDataTable(key, entry.type, entry.count);
-            entry.typeVersion = entry.type.match(/(\d+\.\d+)$/)[0];
-            entry.typeName = typeName(entry.type);
             return entry;
           });
         } else {
@@ -684,7 +681,7 @@ function typeHeaders(page) {
       }
     }, [circleIcon(iconInitial, expanded, iconColor), h('h4.inline-block.m0', {
       style: { paddingLeft: '38px' }
-    }, [entry.typeName, ' ', entry.typeVersion, ' · ', h('span.muted', [count, ' total'])])]), showIf(entry.expanded, function () {
+    }, [entry.typeName, ' · ', h('span.muted', [count, ' total'])])]), showIf(entry.expanded, function () {
       return typeDataSection(page, entry);
     })]);
   }))]);
@@ -741,21 +738,38 @@ function receiveMessage(ev) {
 
 function mergeTypeCounts(inb, out) {
   // Convert inbound and outbound counts into a single merged object of simple type names
-  var all = inb.concat(out).map(function (t) {
-    return { type: t.type, count: t.type_count };
+  var all = inb.concat(out)
+  // Set some useful defaults
+  .map(function (t) {
+    return {
+      type: t.type,
+      count: t.type_count,
+      typeVersion: t.type.match(/(\d+\.\d+)$/)[0],
+      typeName: typeName(t.type)
+    };
   });
+
+  // Merge all types by type name
   var allObj = {};
   all.forEach(function (t) {
-    allObj[t.type] = allObj[t.type] || 0;
-    allObj[t.type] += t.count;
+    var existing = allObj[t.typeName];
+    if (existing) {
+      var prevVersion = Number(existing.typeVersion);
+      var thisVersion = Number(t.typeVersion);
+      if (prevVersion === thisVersion) {
+        // For multiple type counts of the same version, add them up
+        allObj[t.typeName].count += t.count;
+      } else if (Number(existing.typeVersion) < Number(t.typeVersion)) {
+        // Favor and overwritethe higher-versioned types
+        allObj[t.typeName] = t;
+      }
+    } else {
+      allObj[t.typeName] = t;
+    }
   });
   // Convert back to an array, sorted by type name
-  var sorted = [];
-  for (var name in allObj) {
-    sorted.push({ type: name, count: allObj[name] });
-  }
-  return sorted.sort(function (x, y) {
-    return sortBy(x.type, y.type);
+  return Object.values(allObj).sort(function (x, y) {
+    return sortBy(x.typeName, y.typeName);
   });
 }
 
