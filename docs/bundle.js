@@ -84,7 +84,7 @@ module.exports = { HomologDetails: HomologDetails
 function view() {
   var details = this;
   var href = window._env.kbaseRoot + '/#dataview/' + details.data.kbase_id;
-  return h('div.p1', [definition('Assembly', details.data.sciname || details.data.sourceid, href), definition('Mash distance', details.data.dist), refTable(details)]);
+  return h('div.p1', [definition('Assembly page', details.data.sciname || details.data.sourceid, href), refTable(details)]);
 }
 
 function refTable(details) {
