@@ -264,7 +264,7 @@ function view() {
     tableRows.push(resultRow(table, table.data[i]));
     tableRows.push(resultRowDetails(table, table.data[i], nCols));
   }
-  return h('div', [h('h2.mt3', 'Similar Assemblies'), h('table.table-lined', [h('thead', [h('tr', [h('th', ''), // empty table header for plus/minus expand icon
+  return h('div', [h('h2.mt3', 'Similar Assemblies'), h('table.table-lined', [h('thead', [h('tr', [h('th.sticky', ''), // empty table header for plus/minus expand icon
   th(table, 'Distance'), th(table, 'Name'), th(table, 'Knowledge Score'), th(table, 'Source')])]), h('tbody', tableRows)]), showIf(!table.hasMore, function () {
     return h('p.muted', 'No more results.');
   }), showIf(table.hasMore, function () {
@@ -303,7 +303,7 @@ function resultRowDetails(table, result, nCols) {
 
 function th(table, txt) {
   var isSorting = table.sortCol === txt;
-  return h('th.sortable', {
+  return h('th.sortable.sticky', {
     class: { sorting: isSorting },
     on: {
       click: function () {
@@ -477,7 +477,7 @@ function view() {
   for (var i = 0; i < this.data.length; ++i) {
     _loop(i);
   }
-  return h('div', [h('table.table-lined', [h('thead', [h('tr', [h('th', ''), h('th', 'Name'), h('th', 'Date'), h('th', 'Creator'), h('th', 'Narrative')])]), h('tbody', tableRows)]), showIf(this.hasMore, function () {
+  return h('div', [h('table.table-lined', [h('thead', [h('tr', [h('th.sticky', ''), h('th.sticky', 'Name'), h('th.sticky', 'Date'), h('th.sticky', 'Creator'), h('th.sticky', 'Narrative')])]), h('tbody', tableRows)]), showIf(this.hasMore, function () {
     return h('div', [h('button.btn.mt2', {
       on: { click: function () {
           return _this3.fetchNext();
@@ -2001,9 +2001,18 @@ function queryify(params) {
 },{}],22:[function(require,module,exports){
 module.exports = formatDate;
 
+// Convert a string representing a date into a standard-formatted string of MM/DD/YYYY
+// Fall back to the original string if anything fails
+
 function formatDate(str) {
-  var date = new Date(str);
-  return date.toLocaleDateString('en-US');
+  try {
+    var date = new Date(Date.parse(str));
+    var formatted = date.toLocaleDateString('en-US');
+    if (formatted === 'Invalid Date') return str;
+    return formatted;
+  } catch (e) {
+    return str;
+  }
 }
 },{}],23:[function(require,module,exports){
 var colorMapping = {
