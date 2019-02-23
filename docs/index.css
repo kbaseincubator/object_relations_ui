@@ -218,11 +218,26 @@ fieldset {
 }
 .sticky {
   position: sticky;
+  top: 0;
 }
 .table-lined th {
   text-align: left;
-  top: 0px;
   background: white;
+  min-height: 1rem;
+}
+.table-lined th {
+  border-bottom: 1px solid #bbb;
+}
+th.sticky {
+  border: none;
+}
+th.sticky:after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  border-bottom: 1px solid #bbb;
 }
 .table-lined.table-lined-gray th {
   background: #eee;
@@ -230,14 +245,6 @@ fieldset {
 .table-lined th,
 .table-lined th * {
   color: #666;
-}
-.table-lined th:after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  border-bottom: 1px solid #bbb;
 }
 .expand-icon {
   display: inline-block;
