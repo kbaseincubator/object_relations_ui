@@ -216,9 +216,11 @@ fieldset {
 .table-lined tbody tr.expanded td {
   font-weight: bold;
 }
+.sticky {
+  position: sticky;
+}
 .table-lined th {
   text-align: left;
-  position: sticky;
   top: 0px;
   background: white;
 }

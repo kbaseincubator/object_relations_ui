@@ -154,11 +154,11 @@ function view () {
     h('table.table-lined', [
       h('thead', [
         h('tr', [
-          h('th', ''),
-          h('th', 'Name'),
-          h('th', 'Date'),
-          h('th', 'Creator'),
-          h('th', 'Narrative')
+          h('th.sticky', ''),
+          h('th.sticky', 'Name'),
+          h('th.sticky', 'Date'),
+          h('th.sticky', 'Creator'),
+          h('th.sticky', 'Narrative')
         ])
       ]),
       h('tbody', tableRows)

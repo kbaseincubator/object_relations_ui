@@ -133,7 +133,7 @@ function view () {
     h('table.table-lined', [
       h('thead', [
         h('tr', [
-          h('th', ''), // empty table header for plus/minus expand icon
+          h('th.sticky', ''), // empty table header for plus/minus expand icon
           th(table, 'Distance'),
           th(table, 'Name'),
           th(table, 'Knowledge Score'),
@@ -191,7 +191,7 @@ function resultRowDetails (table, result, nCols) {
 
 function th (table, txt) {
   const isSorting = table.sortCol === txt
-  return h('th.sortable', {
+  return h('th.sortable.sticky', {
     class: { sorting: isSorting },
     on: {
       click: () => { table.sortByColumn(txt) }
