@@ -2,21 +2,23 @@
   "name": "knowledge_graph",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "private": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "budo index.js:bundle.js --verbose --live",
-    "build": "browserify index.js -t es2040 > docs/bundle.js && cp index.html docs/index.html && cp index.css docs/index.css"
+    "start": "webpack-dev-server",
+    "build": "webpack",
+    "watch": "webpack --watch"
   },
   "author": "jayrbolton",
   "license": "MIT",
   "devDependencies": {
-    "browserify-hmr": "^0.3.7",
-    "budo": "^11.5.0",
-    "es2040": "^1.2.6",
-    "standard": "^12.0.1"
+    "standard": "^12.0.1",
+    "webpack": "^4.29.6",
+    "webpack-cli": "^3.2.3",
+    "webpack-dev-server": "^3.2.1"
   },
   "dependencies": {
+    "@kbase/base-css": "0.0.1",
     "form-serialize": "^0.7.2",
     "snabbdom": "^0.7.3"
   }

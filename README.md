@@ -9,8 +9,6 @@ npm i
 npm start
 ```
 
-Point your browser to `localhost:9966`
-
 ## Build for github-pages
 
 ```
