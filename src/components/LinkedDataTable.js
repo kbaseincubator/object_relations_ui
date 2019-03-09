@@ -89,10 +89,10 @@ function LinkedDataTable (objKey, type, count) {
 
 function view () {
   if (this.loading) {
-    return h('p.muted', 'Loading...')
+    return h('p.black-50', 'Loading...')
   }
   if (!this.data || !this.data.length) {
-    return h('p.muted', 'No linked data')
+    return h('p.black-50', 'No linked data')
   }
   let tableRows = []
   const nCols = 5

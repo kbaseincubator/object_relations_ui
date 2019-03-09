@@ -62,13 +62,13 @@ function view () {
 
 function refTable (details) {
   if (details.references.loading) {
-    return h('p.p1.muted', 'Loading references...')
+    return h('p.p1.black-50', 'Loading references...')
   }
   if (!details.references.data || !details.references.data.length) {
-    return h('p.p1.muted', 'No further references found for this result.')
+    return h('p.pa1.black-50', 'No further references found for this result.')
   }
-  return h('div.p1', [
-    h('h3.h3-5.my1', 'Referencing Objects'),
+  return h('div.pa1', [
+    h('h3.f4.mv1', 'Referencing Objects'),
     h('table.table-lined.table-lined-gray', [
       h('thead', [
         h('tr', [
@@ -88,7 +88,7 @@ function refRow (details, ref) {
   return h('tr', {
     key: ref._key
   }, [
-    h('td', h('span.bold', typeName(ref.ws_type))),
+    h('td', h('span.b', typeName(ref.ws_type))),
     h('td', [
       h('a', {
         props: {

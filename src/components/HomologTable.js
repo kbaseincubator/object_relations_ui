@@ -191,7 +191,11 @@ function resultRowDetails (table, result, nCols) {
 
 function th (table, txt) {
   const isSorting = table.sortCol === txt
-  return h('th.sortable.sticky', {
+  return h('th.sortable', {
+    style: {
+      position: 'sticky',
+      top: 0
+    },
     class: { sorting: isSorting },
     on: {
       click: () => { table.sortByColumn(txt) }
@@ -199,7 +203,7 @@ function th (table, txt) {
   }, [
     h('span', [ txt ]),
     showIf(isSorting, () => {
-      return h('span.arrow.inline-block.ml1', {
+      return h('span.arrow.dib.ml1', {
         class: {
           'arrow-down': table.sortDir === 'asc',
           'arrow-up': table.sortDir === 'desc'

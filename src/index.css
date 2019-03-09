@@ -1,3 +1,5 @@
+@import '~@kbase/base-css/css/tachyons.min.css';
+
 * {
   font-family: Oxygen, Helvetica, Arial, sans-serif;
   color: #444;

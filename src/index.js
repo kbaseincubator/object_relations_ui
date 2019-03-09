@@ -11,7 +11,7 @@ const sortBy = require('./utils/sortBy')
 
 // components
 const Component = require('./components/Component')
-const UpaForm = require('./components/UpaForm')
+import { UpaForm } from './components/UpaForm'
 const { HomologTable } = require('./components/HomologTable')
 const { LinkedDataTable } = require('./components/LinkedDataTable')
 
@@ -65,17 +65,17 @@ function Page () {
 function view () {
   const page = this
   window._page = page
-  const div = content => h('div.container.px2.max-width-3', content)
+  const div = content => h('div.mw9.ph4', content)
   if (page.pendingInput) {
     // We are still awaiting any post message for initial parameters..
     return div([
       page.upaForm.view(),
-      h('p.muted', 'Waiting for input...')
+      h('p.black-50', 'Waiting for input...')
     ])
   }
   return div([
     page.upaForm.view(),
-    showIf(page.error, () => h('p.error', page.error)),
+    showIf(page.error, () => h('p.red', page.error)),
     h('div', [
       typeHeaders(page),
       page.homologTable.view()
@@ -85,10 +85,10 @@ function view () {
 
 function typeHeaders (page) {
   if (page.loading) {
-    return h('p.muted', 'Searching for linked data...')
+    return h('p.black-50', 'Searching for linked data...')
   }
   if (!page.typeCounts || !page.typeCounts.length) {
-    return h('p.muted', 'No linked data results.')
+    return h('p.black-50', 'No linked data results.')
   }
   return h('div', [
     h('h2.mt0', 'Linked Data'),
@@ -98,8 +98,8 @@ function typeHeaders (page) {
       // Get the first two letters of the type for the icon
       const iconInitial = entry.typeName
         .split('').filter(c => c === c.toUpperCase()).slice(0, 3).join('')
-      return h('div.relative.result-row.my2', [
-        h('div.hover-parent', {
+      return h('div.relative.result-row.mv2', [
+        h('div.pointer.hover-dark-blue.hide-child', {
           on: {
             click: () => {
               entry.expanded = !entry.expanded
@@ -112,10 +112,10 @@ function typeHeaders (page) {
           }
         }, [
           circleIcon(iconInitial, expanded, iconColor),
-          h('h4.inline-block.m0', {
+          h('h4.dib.ma0', {
             style: { paddingLeft: '38px' }
           }, [
-            entry.typeName, ' · ', h('span.muted', [ count, ' total' ])
+            entry.typeName, ' · ', h('span.black-50', [ count, ' total' ])
           ])
         ]),
         showIf(entry.expanded, () => typeDataSection(page, entry))
@@ -126,7 +126,7 @@ function typeHeaders (page) {
 
 function typeDataSection (page, entry) {
   const iconColor = icons.colors[entry.typeName]
-  return h('div.mb2.pt1.clearfix', {
+  return h('div.mb2.pt1.cf', {
     style: { paddingLeft: '38px' }
   }, [
     h('span.circle-line', {
@@ -137,15 +137,11 @@ function typeDataSection (page, entry) {
 }
 
 function circleIcon (contents, isExpanded, background) {
-  return h('span.mr1.circle.inline-block', {
-    class: {
-      'hover-caret-up': isExpanded,
-      'hover-caret-down': !isExpanded
-    },
+  return h('span.mr1.br-100.circle.dib.h2.w2.white.center.grow', {
     style: { background }
   }, [
-    h('span.hover-hide', [contents]),
-    h('span.hover-arrow.hover-inline-block', isExpanded ? '−' : '+')
+    h('span', [contents]),
+    h('span.child.hover-arrow.hover-inline-block', isExpanded ? '−' : '+')
   ])
 }
 

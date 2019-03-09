@@ -1,12 +1,12 @@
 const serialize = require('form-serialize')
 const h = require('snabbdom/h').default
 const Component = require('./Component')
+import { Button } from './views/button'
 
 // Form for manually submitting auth/endpoint/upa
 
-module.exports = UpaForm
 
-function UpaForm () {
+export function UpaForm () {
   let data = {
     kbaseEndpoint: window._env.kbaseEndpoint,
     authToken: window._env.authToken
@@ -38,8 +38,8 @@ function view () {
       }
     }
   }, [
-    h('fieldset.inline-block.mr2', [
-      h('label.block.mb2.bold', 'KBase endpoint'),
+    fieldset([
+      label('KBase endpoint'),
       h('input.input.p1', {
         props: {
           required: true,
@@ -49,8 +49,8 @@ function view () {
         }
       })
     ]),
-    h('fieldset.inline-block.mr2', [
-      h('label.block.mb2.bold', 'Auth token'),
+    fieldset([
+      label('Auth token'),
       h('input.input.p1', {
         props: {
           type: 'password',
@@ -59,8 +59,8 @@ function view () {
         }
       })
     ]),
-    h('fieldset.inline-block', [
-      h('label.block.mb2.bold', 'Object address'),
+    fieldset([
+      label('Object address'),
       h('input.input.p1', {
         props: {
           placeholder: '1/2/3',
@@ -71,8 +71,14 @@ function view () {
         }
       })
     ]),
-    h('fieldset.clearfix.col-12.pt2', [
-      h('button.btn', {props: {type: 'submit'}}, 'Submit')
-    ])
+    fieldset([ Button('Submit') ])
   ])
+}
+
+function label (txt) {
+  return h('label.black-60.mb2.bold.db', txt)
+}
+
+function fieldset (children) {
+  return h('fieldset.clearfix.pv2.ph0.bn.dib', children)
 }

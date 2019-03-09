@@ -5,9 +5,10 @@
   "private": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "webpack-dev-server",
-    "build": "webpack",
-    "watch": "webpack --watch"
+    "start": "npm run css && webpack-dev-server",
+    "build": "npm run css && webpack",
+    "watch": "npm run css && webpack --watch",
+    "css": "cp node_modules/@kbase/base-css/css/tachyons.min.css docs/bundle.css"
   },
   "author": "jayrbolton",
   "license": "MIT",
