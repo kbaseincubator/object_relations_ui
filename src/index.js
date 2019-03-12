@@ -11,7 +11,7 @@ const sortBy = require('./utils/sortBy')
 
 // components
 const Component = require('./components/Component')
-import { UpaForm } from './components/UpaForm'
+const { UpaForm } = require('./components/UpaForm');
 const { HomologTable } = require('./components/HomologTable')
 const { LinkedDataTable } = require('./components/LinkedDataTable')
 

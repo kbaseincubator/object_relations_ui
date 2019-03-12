@@ -1,5 +1,6 @@
-const Component = require('./Component.js')
-const h = require('snabbdom/h').default
+const Component = require('./Component.js');
+const h = require('snabbdom/h').default;
+const table = require('./views/table');
 
 // views
 const definition = require('./views/definition')
@@ -151,18 +152,10 @@ function view () {
     tableRows.push(detailsRow)
   }
   return h('div', [
-    h('table.table-lined', [
-      h('thead', [
-        h('tr', [
-          h('th.sticky', ''),
-          h('th.sticky', 'Name'),
-          h('th.sticky', 'Date'),
-          h('th.sticky', 'Creator'),
-          h('th.sticky', 'Narrative')
-        ])
-      ]),
-      h('tbody', tableRows)
-    ]),
+    table(
+      ['', 'Name', 'Date', 'Creator', 'Narrative'],
+      [{}]
+    )
     showIf(this.hasMore, () =>
       h('div', [
         h('button.btn.mt2', {
