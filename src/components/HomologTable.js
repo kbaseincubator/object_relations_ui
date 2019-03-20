@@ -155,18 +155,28 @@ function view () {
 
 function resultRow (table, result) {
   const { dist, namespaceid, sciname, sourceid } = result
-  return h('tr.expandable', {
+  return h('tr', {
     key: sourceid,
-    class: { expanded: result.expanded },
+    class: {
+      expanded: result.expanded,
+      expandable: result.details.data.kbase_id
+    },
     on: {
       click: () => {
-        result.expanded = !result.expanded
-        result.details.fetchReferences()
-        table._render()
+        console.log('result.details', result.details)
+        if (result.details.data.kbase_id) {
+          result.expanded = !result.expanded
+          result.details.fetchReferences()
+          table._render()
+        }
       }
     }
   }, [
-    h('td', [ h('span.expand-icon', result.expanded ? '−' : '+') ]),
+    h('td', [
+      showIf(result.details.data.kbase_id, () =>
+        h('span.expand-icon', result.expanded ? '−' : '+')
+      )
+    ]),
     h('td.bold', [ dist ]),
     h('td', [ sciname || sourceid ]),
     h('td', [
