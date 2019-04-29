@@ -142,9 +142,14 @@ function circleIcon (contents, isExpanded, background) {
       'hover-caret-up': isExpanded,
       'hover-caret-down': !isExpanded
     },
-    style: { background }
+    style: {background}
   }, [
-    h('span.hover-hide', [contents]),
+    h('span.hover-hide', {
+      style: {
+        fontSize: '1rem',
+        lineHeight: '1.75rem',
+      }
+    }, [contents]),
     h('span.hover-arrow.hover-inline-block', isExpanded ? '−' : '+')
   ])
 }

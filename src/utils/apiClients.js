@@ -7,7 +7,7 @@ function fetchLinkedObjs (key, options) {
   const payload = {
     obj_key: key,
     owners: false,
-    type: options.type,
+    types: [options.type],
     show_private: true,
     show_public: true,
     offset: options.offset,

@@ -100,7 +100,7 @@ function view () {
     const { path, vertex, expanded } = this.data[i]
     let formattedPath = path.vertices.map(v => typeName(v.ws_type))
     formattedPath[0] += ' (this)'
-    formattedPath = formattedPath.join(' 🡒 ')
+    formattedPath = formattedPath.join(' ⇾ ')
     const dataRow = h('tr.expandable', {
       class: { expanded },
       key: vertex._key,
