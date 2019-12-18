@@ -5,9 +5,8 @@ const h = require('snabbdom/h').default
 const { HomologDetails } = require('./HomologDetails')
 
 // utils
-const { fetchHomologs, fetchKnowledgeScores } = require('../utils/apiClients')
+const { fetchHomologs } = require('../utils/apiClients')
 const showIf = require('../utils/showIf')
-const toObjKey = require('../utils/toObjKey')
 const sortBy = require('../utils/sortBy')
 
 module.exports = { HomologTable }
@@ -19,21 +18,21 @@ function HomologTable () {
     currentPage: 1,
     pageSize: 30,
     sortable: { 'Knowledge Score': true },
-    sortCol: 'Distance',
+    sortCol: 'ANI Distance',
     sortDir: 'asc',
     loading: false,
     hasMore: false,
     // Functions for sorting each column in the results
     // see the sortBy function below, and the docs for Array.sort on MDN
     sorters: {
-      'Distance': (x, y) => sortBy(Number(x.dist), Number(y.dist)),
-      'Name': (x, y) => sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid),
+      'ANI Distance': (x, y) => sortBy(Number(x.dist), Number(y.dist)),
+      'Scientific Name': (x, y) => sortBy(x.sciname || x.sourceid, y.sciname || y.sourceid),
       'Knowledge Score': (x, y) => {
         const scorex = isNaN(x.knowledge_score) ? 0 : Number(x.knowledge_score)
         const scorey = isNaN(y.knowledge_score) ? 0 : Number(y.knowledge_score)
         return sortBy(scorex, scorey)
       },
-      'Source': (x, y) => sortBy(x.source, y.source)
+      Source: (x, y) => sortBy(x.source, y.source)
     },
     // Sort the results by a column
     sortByColumn (colName) {
@@ -82,25 +81,10 @@ function HomologTable () {
               d.details = HomologDetails(d)
               return d
             })
-            // Get an array of all the KBase workspace IDs for each result
-            const ids = data.map(d => d.kbase_id).filter(Boolean)
-              .map(toObjKey)
-              .map(key => 'wsprov_object/' + key)
-            return fetchKnowledgeScores(ids)
+            this.data = data
+            return data
           } else {
             return []
-          }
-        })
-        // Fetch knowledge scores from arango for each result
-        // Assign the scores into each result object
-        .then(resp => {
-          if (resp && resp.results && resp.results.length) {
-            resp.results.forEach((result, idx) => {
-              const score = Number(result.knowledge_score)
-              const resultKey = result.key
-              this.data.filter(d => toObjKey(d.kbase_id) === resultKey)
-                .forEach(d => { d.knowledge_score = score })
-            })
           }
         })
         .catch(err => { console.error(err) })
@@ -116,7 +100,7 @@ function HomologTable () {
 function view () {
   const table = this
   if (table.loading) {
-    return h('p.muted', 'Loading homologs...')
+    return h('p.muted', 'Loading..')
   }
   if (!table.data || !table.data.length) {
     return h('div', '')
@@ -129,14 +113,13 @@ function view () {
     tableRows.push(resultRowDetails(table, table.data[i], nCols))
   }
   return h('div', [
-    h('h2.mt3', 'Similar Assemblies'),
+    h('h2.mt3', 'RefSeq Homologs'),
     h('table.table-lined', [
       h('thead', [
         h('tr', [
           h('th.sticky', ''), // empty table header for plus/minus expand icon
-          th(table, 'Distance'),
-          th(table, 'Name'),
-          th(table, 'Knowledge Score'),
+          th(table, 'ANI Distance'),
+          th(table, 'Scientific Name'),
           th(table, 'Source')
         ])
       ]),
@@ -146,7 +129,7 @@ function view () {
     showIf(table.hasMore, () => {
       const remaining = table.data.length - (this.currentPage * this.pageSize)
       return h('div', [
-        h('button.btn.mt2', { on: { click: () => table.nextPage() } }, [ 'Load more ' ]),
+        h('button.btn.mt2', { on: { click: () => table.nextPage() } }, ['Load more ']),
         h('span.muted.inline-block.ml1', [remaining, ' left'])
       ])
     })
@@ -163,10 +146,8 @@ function resultRow (table, result) {
     },
     on: {
       click: () => {
-        console.log('result.details', result.details)
         if (result.details.data.kbase_id) {
           result.expanded = !result.expanded
-          result.details.fetchReferences()
           table._render()
         }
       }
@@ -177,11 +158,8 @@ function resultRow (table, result) {
         h('span.expand-icon', result.expanded ? '−' : '+')
       )
     ]),
-    h('td.bold', [ dist ]),
-    h('td', [ sciname || sourceid ]),
-    h('td', [
-      isNaN(result.knowledge_score) ? '' : result.knowledge_score
-    ]),
+    h('td.bold', [dist]),
+    h('td', [sciname || sourceid]),
     h('td', [
       namespaceid.replace(/_/g, ' ')
     ])
@@ -207,7 +185,7 @@ function th (table, txt) {
       click: () => { table.sortByColumn(txt) }
     }
   }, [
-    h('span', [ txt ]),
+    h('span', [txt]),
     showIf(isSorting, () => {
       return h('span.arrow.inline-block.ml1', {
         class: {

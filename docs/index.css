@@ -132,6 +132,9 @@ fieldset {
   vertical-align: bottom;
   white-space: nowrap;
 }
+.w-12rem {
+  width: 12rem;
+}
 .mw-36rem {
   max-width: 36rem;
 }
