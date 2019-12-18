@@ -2,8 +2,6 @@ const Component = require('./Component.js')
 const h = require('snabbdom/h').default
 
 // utils
-const { fetchReferences } = require('../utils/apiClients')
-const toObjKey = require('../utils/toObjKey')
 const typeName = require('../utils/typeName')
 const formatDate = require('../utils/formatDate')
 const objHrefs = require('../utils/objHrefs')
@@ -24,28 +22,6 @@ function HomologDetails (data) {
       pageSize: 10,
       loading: false
     },
-    // Fetch referencing objects
-    fetchReferences (result) {
-      if (this.references.fetched) return
-      this.references.loading = true
-      const key = toObjKey(this.data.kbase_id)
-      fetchReferences(key)
-        .then(resp => {
-          if (resp && resp.results && resp.results.length) {
-            this.references.data = resp.results
-          } else {
-            throw new Error(resp)
-          }
-        })
-        .catch(err => {
-          console.error(err)
-        })
-        .finally(() => {
-          this.references.loading = false
-          this.references.fetched = true
-          this._render()
-        })
-    },
     data,
     view
   })
@@ -54,8 +30,10 @@ function HomologDetails (data) {
 function view () {
   const details = this
   const href = window._env.kbaseRoot + '/#dataview/' + details.data.kbase_id
+  const ncbiHref = 'https://www.ncbi.nlm.nih.gov/assembly/' + details.data.sourceid
   return h('div.p1', [
     definition('Assembly page', details.data.sciname || details.data.sourceid, href),
+    definition('RefSeq page', details.data.sourceid, ncbiHref),
     refTable(details)
   ])
 }
@@ -65,7 +43,7 @@ function refTable (details) {
     return h('p.p1.muted', 'Loading references...')
   }
   if (!details.references.data || !details.references.data.length) {
-    return h('p.p1.muted', 'No further references found for this result.')
+    return h('p.p1.muted', 'No additional references found for this result.')
   }
   return h('div.p1', [
     h('h3.h3-5.my1', 'Referencing Objects'),

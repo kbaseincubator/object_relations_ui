@@ -13,7 +13,7 @@ function fetchLinkedObjs (key, options) {
     offset: options.offset,
     results_limit: options.limit
   }
-  return aqlQuery(payload, { view: 'wsprov_fetch_linked_objects' })
+  return aqlQuery(payload, { stored_query: 'wsprov_fetch_linked_objects' })
 }
 
 function fetchKnowledgeScores (ids) {
@@ -21,18 +21,18 @@ function fetchKnowledgeScores (ids) {
     obj_ids: ids,
     prop: 'knowledge_score'
   }
-  return aqlQuery(payload, { view: 'wsprov_fetch_obj_field', batch_size: 500 })
+  return aqlQuery(payload, { stored_query: 'wsprov_fetch_obj_field', batch_size: 500 })
 }
 
 function fetchTypeCounts (key) {
   const payload = {
     obj_key: key,
-    owners: false,
-    type: false,
+    owners: [],
+    type: '',
     show_private: true,
     show_public: true
   }
-  return aqlQuery(payload, { view: 'wsprov_count_linked_object_types' })
+  return aqlQuery(payload, { stored_query: 'wsprov_count_linked_object_types' })
 }
 
 function fetchReferences (key) {
@@ -41,7 +41,7 @@ function fetchReferences (key) {
     result_limit: 10,
     offset: 0
   }
-  return aqlQuery(payload, { view: 'wsprov_fetch_references' })
+  return aqlQuery(payload, { stored_query: 'wsprov_fetch_references' })
 }
 
 // Use the sketch service to fetch homologs (only applicable to reads, assemblies, or annotations)
@@ -74,7 +74,7 @@ function fetchHomologs (upa, token) {
 function aqlQuery (payload, params) {
   const token = window._env.authToken
   const apiUrl = window._env.relEngURL.replace(/\/$/, '') // remove trailing slash
-  const url = apiUrl + '/api/query_results/' + queryify(params)
+  const url = apiUrl + '/api/v1/query_results/' + queryify(params)
   const headers = {}
   if (token) headers.Authorization = token
   return window.fetch(url, {
