@@ -44,10 +44,10 @@ function view () {
 window.addEventListener('message', receiveMessage, false)
 // Default app config -- overridden by postMessage handlers further below
 window._env = {
-  kbaseEndpoint: 'https://kbase.us/services',
-  kbaseRoot: 'https://narrative.kbase.us',
-  sketchURL: 'https://kbase.us/dynserv/1b054633a008e078cec1a20dfd6d118d53c31ed4.sketch-service',
-  relEngURL: 'https://kbase.us/services/relation_engine_api',
+  kbaseEndpoint: 'https://ci.kbase.us/services',
+  kbaseRoot: 'https://ci.kbase.us',
+  sketchURL: 'https://ci.kbase.us/dynserv/2ef8cc90ad4caf1caa86be919d326e7b3ec90435.sketch-service',
+  relEngURL: 'https://ci.kbase.us/services/relation_engine_api',
   authToken: null
 }
 
