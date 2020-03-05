@@ -57,10 +57,9 @@ document._page = Page()
 // Receive JSON data in a post message
 function receiveMessage (ev) {
   let data
-  if (!data) {
+  if (!ev.data) {
     return
   }
-  console.log('Received message:', data)
   try {
     data = JSON.parse(ev.data)
   } catch (e) {
@@ -79,7 +78,6 @@ function receiveMessage (ev) {
 // Handle post message methods
 window._messageHandlers = {
   setConfig: function ({ config }) {
-    console.log('Setting config:', config)
     window._env = Object.assign(window._env, config)
     if (config.upa) {
       document._page.setUpa(config.upa)
