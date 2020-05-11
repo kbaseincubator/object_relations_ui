@@ -1,0 +1,9 @@
+* {
+  font-family: 'Open Sans', sans-serif;
+}
+i.fas {
+  opacity: 0.75;
+}
+body > main {
+  padding: 2rem;
+}
