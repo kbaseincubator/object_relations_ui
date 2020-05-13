@@ -11,16 +11,15 @@ interface Props {
 interface State {}
 
 export class RelatedDataTables extends Component<Props, State> {
-
   render() {
     if (!this.props.relatedData) {
-      return '';
+      return "";
     }
     return (
       <div>
-        {renderTable(this, 'copies', 'Copies')}
-        {renderTable(this, 'refs', 'References')}
-        {renderTable(this, 'prov', 'Provenance')}
+        {renderTable(this, "copies", "Copies")}
+        {renderTable(this, "refs", "References")}
+        {renderTable(this, "prov", "Provenance")}
       </div>
     );
   }
@@ -29,7 +28,7 @@ export class RelatedDataTables extends Component<Props, State> {
 function renderTable(table, prop, title) {
   const rows = table.props.relatedData[prop];
   if (!rows || !rows.length) {
-    return '';
+    return "";
   }
   return (
     <div>
@@ -42,9 +41,7 @@ function renderTable(table, prop, title) {
           <th>Date</th>
           <th>Hops</th>
         </thead>
-        <tbody>
-          {rows.slice(0, 10).map(row => renderRow(row))}
-        </tbody>
+        <tbody>{rows.slice(0, 10).map((row) => renderRow(row))}</tbody>
       </table>
     </div>
   );
@@ -53,14 +50,13 @@ function renderTable(table, prop, title) {
 function renderRow(row) {
   const obj = row.data;
   const type = row.type;
-  const objHref = window._env.kbaseRoot + '/#dataview/' + obj._key.replace(/:/g, '/');
+  const objHref =
+    window._env.kbaseRoot + "/#dataview/" + obj._key.replace(/:/g, "/");
   return (
     <tr>
-      <td>{type.module_name + '.' + type.type_name}</td>
+      <td>{type.module_name + "." + type.type_name}</td>
       <td>
-        <a href={objHref}>
-          {obj.name}
-        </a>
+        <a href={objHref}>{obj.name}</a>
       </td>
       <td>TODO</td>
       <td>{new Date(obj.epoch).toLocaleDateString()}</td>

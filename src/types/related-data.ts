@@ -1,4 +1,3 @@
-
 // Results from the graph query on RE
 export interface RelatedData {
   copies: Array<RelatedDataResult>;

@@ -1,4 +1,3 @@
-
 // Global configuration data set by a postMessage
 export interface Env {
   kbaseRoot: string;

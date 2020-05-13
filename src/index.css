@@ -1,5 +1,5 @@
 * {
-  font-family: 'Open Sans', sans-serif;
+  font-family: "Open Sans", sans-serif;
 }
 /* Headers */
 h1,
@@ -13,14 +13,16 @@ h6 {
   margin: 1rem 0 0.5rem 0;
 }
 /* Links */
-a, .link {
+a,
+.link {
   font-weight: bold;
   text-decoration: none;
   cursor: pointer;
   color: #2a72b4;
   transition: opacity 0.25s;
 }
-a:hover, .link:hover {
+a:hover,
+.link:hover {
   opacity: 0.5;
 }
 /* Lists */

@@ -11,17 +11,19 @@ interface Props {
 interface State {}
 
 export class HomologTable extends Component<Props, State> {
-
   render() {
     if (this.props.loading) {
       return (
         <div>
-          <p><i className='fas fa-spin fa-cog'></i> Searching for homologous genomes...</p>
+          <p>
+            <i className="fas fa-spin fa-cog"></i> Searching for homologous
+            genomes...
+          </p>
         </div>
       );
     }
     if (!this.props.homologs || !this.props.homologs.length) {
-      return '';
+      return "";
     }
     return (
       <div>
@@ -34,9 +36,7 @@ export class HomologTable extends Component<Props, State> {
               <th>Source</th>
             </tr>
           </thead>
-          <tbody>
-            {this.props.homologs.map(hom => renderRow(hom))}
-          </tbody>
+          <tbody>{this.props.homologs.map((hom) => renderRow(hom))}</tbody>
         </table>
       </div>
     );
@@ -44,23 +44,19 @@ export class HomologTable extends Component<Props, State> {
 }
 
 function renderRow(homolog: HomologResult) {
-  const ncbiHref = 'https://www.ncbi.nlm.nih.gov/assembly/' + homolog.sourceid;
+  const ncbiHref = "https://www.ncbi.nlm.nih.gov/assembly/" + homolog.sourceid;
   let sciname: any = homolog.sciname || homolog.sourceid;
   if (homolog.kbase_id) {
-    const href = window._env.kbaseRoot + '/#dataview/' + homolog.kbase_id;
-    sciname = (
-      <a href={href}>
-        {homolog.sciname || homolog.sourceid}
-      </a>
-    );
+    const href = window._env.kbaseRoot + "/#dataview/" + homolog.kbase_id;
+    sciname = <a href={href}>{homolog.sciname || homolog.sourceid}</a>;
   }
   return (
     <tr>
       <td>{homolog.dist}</td>
       <td> {sciname} </td>
       <td>
-        <a href={ncbiHref} target='_blank'>
-          <i className='fas fa-external-link-alt'></i>{' '}
+        <a href={ncbiHref} target="_blank">
+          <i className="fas fa-external-link-alt"></i>{" "}
           {formatNamespace(homolog.namespaceid)}
         </a>
       </td>
@@ -69,5 +65,5 @@ function renderRow(homolog: HomologResult) {
 }
 
 function formatNamespace(ns) {
-  return ns.replace(/_/g, ' ');
+  return ns.replace(/_/g, " ");
 }

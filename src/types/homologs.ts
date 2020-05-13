@@ -1,4 +1,3 @@
-
 export interface HomologResult {
   dist: number; // eg. 0.1
   kbase_id?: string; // eg. "1/2/3"
