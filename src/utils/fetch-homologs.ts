@@ -22,9 +22,10 @@ export async function fetchHomologs(upa: string, sketchURL: string, token?: stri
   if (json.result && json.result.distances && json.result.distances.length) {
     return json.result.distances
   } else {
-    let err: any = new Error('Unable to fetch homolog results');
-    err.json = json;
-    throw err;
+    // let err: any = new Error('Unable to fetch homolog results');
+    // err.json = json;
+    // throw err;
+    return [];
   }
   if (json && json.result && json.result.distances && json.result.distances.length) {
     return json.result.distances;

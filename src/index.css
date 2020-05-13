@@ -10,6 +10,7 @@ h5,
 h6 {
   font-weight: bold;
   color: #333;
+  margin: 1rem 0 0.5rem 0;
 }
 /* Links */
 a, .link {
@@ -29,15 +30,21 @@ ul {
 /* Tables */
 table {
   border-spacing: 0;
+  width: 100%;
+  min-width: 100%;
 }
 th {
   text-align: left;
   border-bottom: 1px solid #c8c8c8;
   padding: 0.5rem 0;
+  color: #666;
 }
 td {
   border-bottom: 1px solid #ddd;
   padding: 0.5rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 table td:not(:last-child) {
   padding-right: 1rem;
