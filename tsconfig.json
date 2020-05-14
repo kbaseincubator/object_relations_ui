@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "outDir": "./docs",
+    "sourceMap": true,
+    "jsxFactory": "h",
+    "baseUrl": "./src",
+    "lib": ["es2017", "es2018", "dom"],
+    "paths": {
+      "~*": ["./*"]
+    },
+    "resolveJsonModule": true,
+    "jsx": "react",
+    "allowSyntheticDefaultImports": true
+  }
+}

@@ -1,25 +1,23 @@
 {
   "name": "object_relations_ui",
   "version": "1.0.0",
-  "description": "",
+  "description": "KBase object relations UI",
   "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "webpack-dev-server",
-    "build": "webpack",
-    "watch": "webpack --watch"
+    "test": "tsc --project tsconfig.json --noEmit && prettier --check \"src/**/*\"",
+    "dev": "parcel src/index.html",
+    "build": "(bash -c 'rm -rf $(pwd)/docs/*.{js,css,html,map}') && parcel build --out-dir docs src/index.html",
+    "fix": "prettier --write \"src/**/*\""
   },
   "author": "jayrbolton",
   "license": "MIT",
   "devDependencies": {
-    "standard": "^12.0.1",
-    "webpack": "^4.29.6",
-    "webpack-cli": "^3.2.3",
-    "webpack-dev-server": "^3.2.1"
+    "parcel-bundler": "^1.12.4",
+    "prettier": "^2.0.5",
+    "typescript": "^3.8.3"
   },
   "dependencies": {
-    "@kbase/base-css": "0.0.1",
-    "form-serialize": "^0.7.2",
-    "snabbdom": "^0.7.3"
+    "classnames": "^2.2.6",
+    "preact": "^10.4.1"
   }
 }
