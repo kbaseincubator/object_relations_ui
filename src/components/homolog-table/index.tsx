@@ -47,7 +47,7 @@ function renderRow(homolog: HomologResult) {
   const ncbiHref = "https://www.ncbi.nlm.nih.gov/assembly/" + homolog.sourceid;
   let sciname: any = homolog.sciname || homolog.sourceid;
   if (homolog.kbase_id) {
-    const href = window._env.kbaseRoot + "/#dataview/" + homolog.kbase_id;
+    const href = window._env.rootURL + "/#dataview/" + homolog.kbase_id;
     sciname = <a href={href}>{homolog.sciname || homolog.sourceid}</a>;
   }
   return (

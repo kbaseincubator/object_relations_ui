@@ -65,6 +65,7 @@ export class App extends Component<Props, State> {
               prov: result.prov.data,
               refs: result.refs.data,
             };
+            console.log(relatedData);
             if (type in HOMOLOG_TYPES) {
               // Load the homologs table
               this.setState({
@@ -98,7 +99,6 @@ export class App extends Component<Props, State> {
   }
 
   render() {
-    console.log("loadingHomologs?", this.state.loadingHomologs);
     if (this.state.error) {
       return (
         <main>

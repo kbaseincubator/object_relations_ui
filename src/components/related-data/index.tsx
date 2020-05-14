@@ -37,8 +37,9 @@ function renderTable(table, prop, title) {
         <thead>
           <th>Type</th>
           <th>Name</th>
-          <th>Creator</th>
           <th>Date</th>
+          <th>User</th>
+          <th>Narrative</th>
           <th>Hops</th>
         </thead>
         <tbody>{rows.slice(0, 10).map((row) => renderRow(row))}</tbody>
@@ -50,16 +51,36 @@ function renderTable(table, prop, title) {
 function renderRow(row) {
   const obj = row.data;
   const type = row.type;
+  const ws = row.ws;
   const objHref =
-    window._env.kbaseRoot + "/#dataview/" + obj._key.replace(/:/g, "/");
+    window._env.rootURL + "/#dataview/" + obj._key.replace(/:/g, "/");
+  let user: any = 'Unknown';
+  if (ws.owner) {
+    const userHref = window._env.rootURL + '/#people/' + ws.owner;
+    user = (
+      <a href={userHref}>
+        {ws.owner}
+      </a>
+    );
+  }
+  let narr: any = 'Unknown';
+  if (ws.narr_name) {
+    const narrHref = window._env.rootURL + '/narrative/' + ws._key;
+    narr = (
+      <a href={narrHref}>
+        {ws.narr_name}
+      </a>
+    );
+  }
   return (
     <tr>
-      <td>{type.module_name + "." + type.type_name}</td>
+      <td>{type.type_name}</td>
       <td>
         <a href={objHref}>{obj.name}</a>
       </td>
-      <td>TODO</td>
       <td>{new Date(obj.epoch).toLocaleDateString()}</td>
+      <td> {user} </td>
+      <td> {narr} </td>
       <td>{row.hops}</td>
     </tr>
   );

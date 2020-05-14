@@ -18,7 +18,7 @@ window._env = {
   sketchURL:
     "https://ci.kbase.us/dynserv/2ef8cc90ad4caf1caa86be919d326e7b3ec90435.sketch-service",
   relEngURL: "https://ci.kbase.us/services/relation_engine_api",
-  kbaseRoot: "https://ci.kbase.us",
+  rootURL: "https://ci.kbase.us",
 };
 
 // Receive JSON data in a post message
