@@ -57,7 +57,7 @@ export class App extends Component<Props, State> {
       fetchRelatedData(env.relEngURL, env.upa)
         .then((json) => {
           if (!json || !json.results || !json.results.length) {
-            console.error(`Request response: ${json}`);
+            console.error(`RE response: ${JSON.stringify(json)}`);
             throw new Error("No results");
           }
           const result = json.results[0];
