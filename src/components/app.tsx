@@ -56,6 +56,10 @@ export class App extends Component<Props, State> {
       this.setState({ error: undefined, loading: true });
       fetchRelatedData(env.relEngURL, env.upa)
         .then((json) => {
+          if (!json || !json.results || !json.results.length) {
+            console.error(`Request response: ${json}`);
+            throw new Error("No results");
+          }
           const result = json.results[0];
           if (result) {
             const type =
@@ -92,7 +96,7 @@ export class App extends Component<Props, State> {
           this.setState({
             loading: false,
             loadingHomologs: false,
-            error: String(err),
+            error: err.message,
           });
         });
     }
