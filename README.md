@@ -6,7 +6,7 @@ Start the live dev server with:
 
 ```sh
 npm i
-npm start
+npm run dev
 ```
 
 ## Build for github-pages
@@ -26,7 +26,7 @@ iframe.postMessage(JSON.stringify({
   method: 'setConfig',
   params: {
     config: {
-      kbaseEndpoint: endpoint,
+      rootURL: endpoint,
       authToken: token,
       upa: upa
     }
@@ -39,4 +39,5 @@ iframe.postMessage(JSON.stringify({
 The relation engine API is at one of these URLs:
 
 * `https://kbase.us/services/relation_engine_api`
+* `https://appdev.kbase.us/services/relation_engine_api`
 * `https://ci.kbase.us/services/relation_engine_api`
