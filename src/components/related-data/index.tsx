@@ -54,23 +54,15 @@ function renderRow(row) {
   const ws = row.ws;
   const objHref =
     window._env.rootURL + "/#dataview/" + obj._key.replace(/:/g, "/");
-  let user: any = 'Unknown';
+  let user: any = "Unknown";
   if (ws.owner) {
-    const userHref = window._env.rootURL + '/#people/' + ws.owner;
-    user = (
-      <a href={userHref}>
-        {ws.owner}
-      </a>
-    );
+    const userHref = window._env.rootURL + "/#people/" + ws.owner;
+    user = <a href={userHref}>{ws.owner}</a>;
   }
-  let narr: any = 'Unknown';
+  let narr: any = "Unknown";
   if (ws.narr_name) {
-    const narrHref = window._env.rootURL + '/narrative/' + ws._key;
-    narr = (
-      <a href={narrHref}>
-        {ws.narr_name}
-      </a>
-    );
+    const narrHref = window._env.rootURL + "/narrative/" + ws._key;
+    narr = <a href={narrHref}>{ws.narr_name}</a>;
   }
   return (
     <tr>
