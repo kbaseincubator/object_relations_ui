@@ -34,7 +34,7 @@ function receiveMessage(ev) {
     console.error(e);
     return;
   }
-  window._setEnv(data);
+  window._setEnv(data.params.config);
 }
 
 window._setEnv = function (data) {
