@@ -27,7 +27,6 @@ function receiveMessage(ev) {
   if (!ev.data) {
     return;
   }
-  console.log("Received:", ev);
   try {
     data = JSON.parse(ev.data);
   } catch (e) {
@@ -39,11 +38,12 @@ function receiveMessage(ev) {
 }
 
 window._setEnv = function (data) {
-  console.log("Setting env:", data);
   window._env = Object.assign(window._env, data);
   if (window._onSetEnv) {
     window._onSetEnv(window._env);
   }
 };
+
+window.addEventListener("message", receiveMessage, false);
 
 render(<App />, document.body);
