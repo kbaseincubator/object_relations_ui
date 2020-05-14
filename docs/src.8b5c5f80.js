@@ -15,4 +15,4 @@ parcelRequire=function(e,r,t,n){var i,o="function"==typeof parcelRequire&&parcel
 },{"preact":"aSor","./homolog-table":"OHsE","./app.css":"vKFU","../utils/fetch-homologs":"n0CC","../utils/query-releng":"YzTN","./related-data":"gNJx"}],"zo2T":[function(require,module,exports) {
 "use strict";Object.defineProperty(exports,"__esModule",{value:!0}),require("./index.css");var e=require("preact"),n=require("./components/app");function r(e){var n;if(e.data){try{n=JSON.parse(e.data)}catch(r){return console.error("Unable to parse data: "+String(n)),void console.error(r)}window._setEnv(n)}}window._env={sketchURL:"https://ci.kbase.us/dynserv/2ef8cc90ad4caf1caa86be919d326e7b3ec90435.sketch-service",relEngURL:"https://ci.kbase.us/services/relation_engine_api",rootURL:"https://ci.kbase.us"},window._setEnv=function(e){window._env=Object.assign(window._env,e),window._onSetEnv&&window._onSetEnv(window._env)},e.render(e.h(n.App,null),document.body);
 },{"./index.css":"vKFU","preact":"aSor","./components/app":"DKsQ"}]},{},["zo2T"], null)
-//# sourceMappingURL=/src.e671e1a4.js.map
+//# sourceMappingURL=/object_relations_ui/src.8b5c5f80.js.map
