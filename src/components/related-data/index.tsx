@@ -50,8 +50,8 @@ function renderTable(table, prop, title) {
 
 function renderRow(row) {
   const obj = row.data;
-  const type = row.type;
-  const ws = row.ws;
+  const type = row.type || {};
+  const ws = row.ws || {};
   const objHref =
     window._env.rootURL + "/#dataview/" + obj._key.replace(/:/g, "/");
   let user: any = "Unknown";
@@ -66,9 +66,9 @@ function renderRow(row) {
   }
   return (
     <tr>
-      <td>{type.type_name}</td>
+      <td>{type.type_name || "Unknown"}</td>
       <td>
-        <a href={objHref}>{obj.name}</a>
+        <a href={objHref}>{obj.name || "Unknown"}</a>
       </td>
       <td>{new Date(obj.epoch).toLocaleDateString()}</td>
       <td> {user} </td>
