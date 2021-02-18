@@ -16,7 +16,7 @@ declare global {
 // Defaults
 window._env = {
   sketchURL:
-    "https://ci.kbase.us/dynserv/2ef8cc90ad4caf1caa86be919d326e7b3ec90435.sketch-service",
+    "https://ci.kbase.us:443/dynserv/8932499d20c7135ac165182060a9de3b6f1aaea3.sketch-service",
   relEngURL: "https://ci.kbase.us/services/relation_engine_api",
   rootURL: "https://ci.kbase.us",
 };
